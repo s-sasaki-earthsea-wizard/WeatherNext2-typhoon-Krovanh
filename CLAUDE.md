@@ -12,8 +12,11 @@ Requirements: docs/requirements.md. Design: docs/design.md.
 ## Current phase
 
 Phase 0 done: skeleton and initial commit (2026-09-16).
-Phase 1 next: ERA5 download + input construction on the Mac, then environment
-setup and a smoke run on the RunPod H100.
+Phase 1 in progress (2026-09-16): the model input contract is derived from the
+checkpoint task config (`make model-spec`) and the whole inference path runs on
+the Mac CPU with the 1 deg Mini checkpoint (`make smoke-cpu`). Remaining: ERA5
+download + input construction on the Mac, then environment setup and a smoke
+run on the RunPod H100.
 Phase 2: inference + tracking for the two cases.
 Phase 3: comparison, once the JMA post-analysis CSV includes storm 2624.
 
@@ -24,12 +27,23 @@ Phase 3: comparison, once the JMA post-analysis CSV includes storm 2624.
 * RunPod has no Docker: environments are uv venvs. Keep the `gpu` dependency
   group Linux-only so the Mac lock never pulls CUDA wheels.
 * Do not hardcode model variable lists; read them from the checkpoint task
-  config and validate ERA5 inputs against it before spending GPU time.
+  config and validate ERA5 inputs against it before spending GPU time. The
+  classification lives in `src/wn2_typhoon/model_spec.py`; the only table there
+  is the model-name to CDS-name mapping, and an unmapped input is a hard error.
+* `attention_type` in every bundled config is `splash_mha`, a TPU Pallas
+  kernel. CPU and GPU runs must override it to `triblockdiag_mha`; see
+  `ATTENTION_TYPE_BY_BACKEND`. The upstream demo only covers the GPU case.
+* Do not install `colabtools`. `weathernext` lists it but never imports it, and
+  the PyPI project of that name is an unrelated third-party package. It is
+  dropped via `override-dependencies` in pyproject.toml.
 * Never store full global forecast fields (~16 GiB per member). Keep tracks,
   global surface variables, and the regional crop defined in the config.
 * All timestamps in code and data are UTC. Convert to JST only in prose.
 * ERA5 comes from the CDS API (ERA5T); ARCO-ERA5 lags by months.
 * Reuse the tracker bundled in `weathernext.cyclones`; do not write one.
+  Configure it through `TRACKER_OVERRIDES` in `inference/tracker.py`, and never
+  pass `initial_storms_df=None` -- see the upstream quirks table in
+  docs/design.md.
 
 ## Conventions specific to this repo
 

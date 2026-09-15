@@ -54,6 +54,44 @@ Consequences worth recording:
 * The 31 targets include 17 `cyclone_*` fields the model predicts directly; the
   bundled direct tracker consumes those rather than deriving centres from MSLP.
 
+## Attention implementation by backend
+
+All three configs ship `attention_type: splash_mha` with `mask_type: lazy`,
+which is the TPU Pallas kernel. The upstream demo overrides it only when the
+backend is GPU, so CPU runs need the same override:
+
+| Backend | attention_type |
+|---|---|
+| tpu | splash_mha (config default) |
+| gpu | triblockdiag_mha (slower, more memory) |
+| cpu | triblockdiag_mha |
+
+## Working around weathernext 0.3.0
+
+Three upstream behaviours cost time to find, so they are recorded here. All are
+handled in `src/wn2_typhoon/`, none needs a fork.
+
+| Symptom | Cause | What we do |
+|---|---|---|
+| `uv sync` pulls an unknown `colabtools` 0.0.1 | `install_requires` names `colabtools`, but the PyPI project of that name is not Google's, and nothing under `weathernext/` imports it | `override-dependencies` in pyproject.toml drops it |
+| The model fails on a CPU backend | every config ships `attention_type: splash_mha`, a TPU Pallas kernel, and the upstream demo overrides it for GPU only | `ATTENTION_TYPE_BY_BACKEND` in `inference/load_model.py` |
+| `DirectTracker(..., initial_storms_df=None)` raises `KeyError: lead_time` | the documented "pure cyclogenesis" path assigns a bare `pd.DataFrame()` and then indexes it by column name | pass a typed empty frame, `tracker.empty_initial_storms()` |
+| The tracker raises `ValueError: Encountered all NA values` | `enforce_physical_consistency_on_quadrants_and_winds` calls `DataFrame.idxmax(axis=1)` expecting NaN for an all-NaN row; pandas raises from 2.1 on, and a storm seeded from an observed position has no quadrant radii at t=0 | `TRACKER_OVERRIDES` turns that step off; it only rewrites wind-radius columns, never the centre, pressure or maximum wind |
+
+Pinning `pandas < 2.1` would restore the old `idxmax` behaviour but is not
+available: the rest of the stack needs numpy 2.
+
+## Local pipeline check
+
+`make smoke-cpu` runs the whole inference path on the Mac with the 1 deg
+`WeatherNextCyclones_Mini_<2024` checkpoint and the public sample forecast:
+input contract, sample validation, input extraction, rollout, and the tracker
+in both seeded and cyclogenesis-only modes. On an M5 with 32 GiB it takes well
+under a minute for two 6 h steps, which makes it a cheap gate before the pod.
+
+It checks plumbing, not skill. The Mini checkpoint is a different model at a
+different resolution, and it takes 17 inputs rather than WeatherNext2's 19.
+
 ## Memory and storage
 
 Calibration from the public 0.25 deg sample file (32 frames, 12.5 GiB):

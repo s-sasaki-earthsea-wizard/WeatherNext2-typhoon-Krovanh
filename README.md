@@ -10,6 +10,8 @@ table (best track).
 ## Status
 
 - [x] Project skeleton
+- [x] Model input contract derived from the checkpoint config (`make model-spec`)
+- [x] Local pipeline check on the Mac CPU (`make smoke-cpu`)
 - [ ] ERA5 download and WeatherNext 2 input construction (Mac)
 - [ ] Inference on RunPod H100 (uv virtual environment, no Docker)
 - [ ] Storm-centre tracking with the tracker bundled in `weathernext`
@@ -48,13 +50,39 @@ Python 3.12 is required (a `weathernext` dependency, `gdm-xarray-jax`, needs >= 
 
 ```bash
 # Mac
-uv sync --group analysis --group dev
+make setup          # uv sync --group cpu --group analysis --group dev
 make help
 
 # RunPod H100 (Linux)
 bash runpod/setup.sh
 make smoke-gpu
 ```
+
+### What the model wants as input
+
+The input variable list is never written down in this repository: it is read
+from the task config of the checkpoint itself, which ships inside the
+`weathernext` package, so it needs no weights, GPU or network access.
+
+```bash
+make model-spec     # 6 pressure-level + 7 single-level + 2 static + 4 computed
+```
+
+WeatherNext2 takes 19 inputs on 13 pressure levels over two frames (t-6h, t).
+Notably it needs no precipitation and no solar radiation on input, and it is
+the only bundled checkpoint that asks for 100 m winds. See
+[docs/design.md](docs/design.md).
+
+### Checking the pipeline before paying for a GPU
+
+```bash
+make smoke-cpu      # 1 deg Mini checkpoint on the jax CPU backend
+```
+
+This runs the real path end to end -- config, the public sample forecast,
+input extraction, rollout, cyclone tracker -- on a checkpoint small enough for
+a laptop. It validates the plumbing, not the science: WeatherNext2 at 0.25 deg
+needs an H100.
 
 ## Model and data provenance
 
@@ -66,6 +94,7 @@ used unmodified.
 |---|---|---|
 | WeatherNext 2 code | [google-deepmind/weathernext](https://github.com/google-deepmind/weathernext) v0.3.0 | Apache-2.0 |
 | Checkpoint `WeatherNext2_<2025_model1.npz` | `gs://dm_graphcast/weathernext2/params/` | CC BY 4.0, (c) Google DeepMind |
+| Checkpoint `WeatherNextCyclones_Mini_<2024.npz` (local pipeline check only) | `gs://dm_graphcast/weathernext2/params/` | CC BY 4.0, (c) Google DeepMind |
 | ERA5 / ERA5T initial conditions | Copernicus Climate Data Store | Copernicus licence; contains modified Copernicus Climate Change Service information 2026 |
 | Typhoon best track | [JMA typhoon position table](https://www.data.jma.go.jp/typhoon/position_table/) | JMA website terms of use |
 

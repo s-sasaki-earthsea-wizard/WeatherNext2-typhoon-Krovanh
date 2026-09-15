@@ -11,9 +11,23 @@ storm:
 model:
   name: WeatherNext2            # WeatherNext2 | WeatherNextCyclones
   split: "2025"                 # "<2025": trained on data through 2024
-  checkpoint: model1            # model1 .. model4
+  checkpoint: model1            # model1 .. model4; null for the Mini models
   gcs_bucket: dm_graphcast
-  gpu_attention_type: triblockdiag_mha   # required when jax backend == "gpu"
+  # Neither the input variable list nor the attention implementation lives
+  # here. The first is read from the checkpoint task config (make model-spec);
+  # the second is a property of the jax backend, see ATTENTION_TYPE_BY_BACKEND
+  # in src/wn2_typhoon/inference/load_model.py.
+
+# Local pipeline check on the Mac. The 1 deg Mini checkpoint is small enough to
+# run on the CPU backend: 0.22 GiB of weights against 0.72 GiB for WeatherNext2,
+# which needs an H100 even on GPU.
+smoke:
+  name: WeatherNextCyclones_Mini
+  split: "2024"
+  checkpoint: null
+  resolution: "1.0"
+  sample_init: "2024-10-07 00:00:00"   # the public sample forecast
+  sample_steps: "04"                   # one of 01, 04, 12, 20, 30
 
 forecast:
   step_hours: 6
