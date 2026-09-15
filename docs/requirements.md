@@ -25,9 +25,11 @@ Formation position 22.6N 131.9E, 996 hPa. Minimum pressure 985 hPa, peak wind 45
    and 2026-09-01 00 UTC (TS upgrade).
 2. **Forecast length 240 h** (40 steps of 6 h), covering the storm through
    dissipation.
-3. **Model**: WeatherNext2_<2025, checkpoint model1, 8 ensemble members
-   (defaults; not yet confirmed). The checkpoint is fine-tuned for HRES
-   initial conditions; the ERA5 mismatch is accepted as part of the experiment.
+3. **Model**: WeatherNext2_<2025, checkpoint model1, 8 ensemble members.
+   Confirmed as the starting configuration; other checkpoints, the
+   WeatherNextCyclones variants or a larger ensemble are only tried if the
+   results are poor. The checkpoint is fine-tuned for HRES initial conditions;
+   the ERA5 mismatch is accepted as part of the experiment.
 4. **Initial conditions**: ERA5 (ERA5T) from the CDS API. ARCO-ERA5 is months
    behind and unusable for this period.
 5. **Reference track**: JMA typhoon position table, official post-analysis CSV
@@ -37,7 +39,10 @@ Formation position 22.6N 131.9E, 996 hPa. Minimum pressure 985 hPa, peak wind 45
    pre-formation case. Maximum wind is reference-only (10-min mean vs gridded
    maximum).
 7. **Order of work**: inference and tracking first, comparison later.
-8. **Repository**: public on GitHub. License deferred pending review of the
-   WeatherNext weights terms (docs/license-notes.md).
+8. **Repository**: public on GitHub, Apache-2.0. The model weights are
+   downloaded at run time and never vendored here; their CC BY 4.0
+   attribution is recorded in NOTICE and the README (docs/license-notes.md).
 9. **Compute**: RunPod H100 80 GB, uv virtual environment, no Docker.
-   A network volume holds the venv, weights, inputs and outputs.
+   A **100 GB network volume** holds the venv, uv cache, weights, inputs and
+   outputs; the sizing is derived in docs/design.md. The pod is created per
+   run and the ssh alias in `~/.ssh/config` is rewritten each time.

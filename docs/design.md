@@ -46,8 +46,11 @@ about 0.4 GiB per frame for all variables. Hence:
 | Total for 2 cases | ~40 GiB |
 
 Members are generated one at a time (rollout -> tracker -> save subsets ->
-free) so host RAM stays around 20 GiB. Recommended network volume: 100 GB,
-which leaves room for two or three extra initialization times.
+free) so host RAM stays around 20 GiB.
+
+**Network volume: 100 GB.** That is the ~40 GiB above plus room for two or
+three extra initialization times at ~12 GiB each. Attach it when creating the
+pod; everything that must survive a pod restart lives under its mount point.
 
 ## RunPod layout
 
@@ -60,6 +63,9 @@ Everything under the volume mount so a stopped pod keeps state:
   .uv-python/                     # UV_PYTHON_INSTALL_DIR
   weights/                        # checkpoint cache
 ```
+
+Pods are created per run, so the `runpod` alias in `~/.ssh/config` is rewritten
+each time a new pod comes up; `RUNPOD_HOST` in `.env` selects the alias.
 
 Open item: ssh.runpod.io is a proxy without scp/rsync support; file transfer
 uses the pod's direct TCP port or tar over ssh (runpod/sync.sh).

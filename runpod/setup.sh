@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # One-time environment setup on a RunPod H100 pod (no Docker available).
 # Everything lives under the persistent volume so a stopped pod keeps it.
+# Create the pod with a 100 GB network volume mounted at /workspace
+# (sizing: docs/design.md).
 #
 # Usage (on the pod):
 #   bash runpod/setup.sh
