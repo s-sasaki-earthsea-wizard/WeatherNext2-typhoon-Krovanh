@@ -39,3 +39,10 @@ Phase 3: comparison, once the JMA post-analysis CSV includes storm 2624.
 * make targets live in makefiles/*.mk with `## help` comments; keep them in
   sync when adding scripts.
 * Session notes go to .claude-notes/ (git-ignored).
+
+## License and attribution
+
+Apache-2.0 for our code. Model weights are CC BY 4.0 (Google DeepMind) and are
+downloaded at run time, never committed. When a new checkpoint is used, add it
+to the checkpoint list in NOTICE. Published figures and tracks must credit the
+model, ERA5 (Copernicus) and the JMA best track. See docs/license-notes.md.

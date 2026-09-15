@@ -1,28 +1,43 @@
-# License notes (decision deferred)
+# License notes
 
-Findings as of 2026-09-16. This is not legal advice; confirm before choosing
-the repository license.
+**Decision (2026-09-16): this repository is Apache-2.0.** See LICENSE and
+NOTICE. What follows records why, and what obligations come from the model
+weights and input data. This is not legal advice.
 
 ## Upstream terms
 
 | Material | License | Source |
 |---|---|---|
 | weathernext code and notebooks | Apache-2.0 | LICENSE in google-deepmind/weathernext |
-| "All other materials" in that repo, which appears to cover the model weights | CC BY 4.0 | README of google-deepmind/weathernext |
+| "All other materials" in that repo, which covers the model weights | CC BY 4.0 | README of google-deepmind/weathernext |
 | ERA5 / ERA5T | Copernicus C3S licence (free use with attribution) | CDS |
 | JMA typhoon position table | JMA website terms of use (attribution required) | data.jma.go.jp |
 
-## Implications for this repository
+## Why Apache-2.0 is safe here
 
-* Our own code can carry any OSI license; Apache-2.0 keeps it aligned with
-  the upstream code.
-* Forecast outputs derived from the weights should carry CC BY 4.0
-  attribution to Google DeepMind if published.
-* ERA5-derived files and JMA-derived tables need their respective
-  attribution lines in the README.
+The weights are never vendored into this repository. They are downloaded at
+run time from `gs://dm_graphcast/` and used unmodified, so nothing under
+CC BY 4.0 is redistributed by the repository itself. Our own source code is
+therefore unencumbered, and Apache-2.0 keeps it aligned with the upstream
+code we call into.
 
-## TODO
+## Obligations that remain
 
-- [ ] Confirm the weights license text on the GCS bucket or in the model card.
-- [ ] Check whether redistributing cropped forecast fields is acceptable.
-- [ ] Pick the repository license and add LICENSE.
+* **Model attribution.** Any published forecast field, track file or figure
+  derived from the weights is a derivative of a CC BY 4.0 work and must credit
+  Google DeepMind and name the checkpoint. NOTICE and the README carry this;
+  repeat it in figure captions and in any write-up.
+* **ERA5 attribution.** "Contains modified Copernicus Climate Change Service
+  information 2026", plus the disclaimer that neither the European Commission
+  nor ECMWF is responsible for any use made of it.
+* **JMA attribution.** Credit the Japan Meteorological Agency for best-track
+  data.
+* **NOTICE must be kept current.** If a different checkpoint is used, add it
+  to the checkpoint list in NOTICE.
+
+## Open item
+
+- [ ] Confirm the weights license text on the GCS bucket or in a model card.
+      The README wording ("all other materials") is the only statement found
+      so far. This does not block Apache-2.0 for our code, only the exact
+      wording of the attribution we give for outputs.

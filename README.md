@@ -56,12 +56,25 @@ bash runpod/setup.sh
 make smoke-gpu
 ```
 
-## Data sources and attribution
+## Model and data provenance
 
-* WeatherNext 2 model and code: Google DeepMind, https://github.com/google-deepmind/weathernext
-* ERA5: Copernicus Climate Change Service (C3S), via the Climate Data Store
-* Best track: Japan Meteorological Agency, https://www.data.jma.go.jp/typhoon/position_table/
+Forecasts here are produced by a model this repository does not contain. The
+weights are downloaded at run time from Google DeepMind's public bucket and are
+used unmodified.
+
+| What | Source | Terms |
+|---|---|---|
+| WeatherNext 2 code | [google-deepmind/weathernext](https://github.com/google-deepmind/weathernext) v0.3.0 | Apache-2.0 |
+| Checkpoint `WeatherNext2_<2025_model1.npz` | `gs://dm_graphcast/weathernext2/params/` | CC BY 4.0, (c) Google DeepMind |
+| ERA5 / ERA5T initial conditions | Copernicus Climate Data Store | Copernicus licence; contains modified Copernicus Climate Change Service information 2026 |
+| Typhoon best track | [JMA typhoon position table](https://www.data.jma.go.jp/typhoon/position_table/) | JMA website terms of use |
+
+Any forecast figure or track file derived from those weights carries the CC BY
+4.0 attribution to Google DeepMind. Neither the European Commission nor ECMWF
+is responsible for any use made of the Copernicus information above.
 
 ## License
 
-Not yet decided. See [docs/license-notes.md](docs/license-notes.md).
+Apache-2.0 for the code in this repository; see [LICENSE](LICENSE) and
+[NOTICE](NOTICE). Third-party terms that apply to the model weights and input
+data are summarized above and in [docs/license-notes.md](docs/license-notes.md).

@@ -1,0 +1,37 @@
+WeatherNext2-typhoon-Krovanh
+Copyright 2026 Syota Sasaki
+
+This product includes software and materials developed by third parties.
+
+--------------------------------------------------------------------------
+WeatherNext (Google DeepMind)
+--------------------------------------------------------------------------
+https://github.com/google-deepmind/weathernext
+
+Code and Colab notebooks are licensed under the Apache License, Version 2.0.
+All other materials in that repository, which include the pre-trained model
+weights distributed via gs://dm_graphcast/, are licensed under the Creative
+Commons Attribution 4.0 International License (CC BY 4.0).
+https://creativecommons.org/licenses/by/4.0/
+
+Forecasts in this repository were produced with the following checkpoints,
+obtained unmodified from gs://dm_graphcast/weathernext2/params/:
+
+    WeatherNext2_<2025_model1.npz
+
+--------------------------------------------------------------------------
+ERA5 (Copernicus Climate Change Service)
+--------------------------------------------------------------------------
+Contains modified Copernicus Climate Change Service information 2026.
+Generated using Copernicus Climate Change Service information 2026.
+
+Neither the European Commission nor ECMWF is responsible for any use that may
+be made of the Copernicus information or data it contains.
+
+--------------------------------------------------------------------------
+Typhoon best track (Japan Meteorological Agency)
+--------------------------------------------------------------------------
+https://www.data.jma.go.jp/typhoon/position_table/
+
+Typhoon position tables are published by the Japan Meteorological Agency and
+used here under the terms of use of the JMA website.

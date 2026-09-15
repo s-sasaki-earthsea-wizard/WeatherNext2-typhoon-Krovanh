@@ -4,6 +4,9 @@ version = "0.1.0"
 description = "WeatherNext 2 (FGN) forecast of Typhoon Krovanh (2026, JMA T2624) from ERA5 initial conditions, compared with the JMA best track"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "Syota Sasaki", email = "syota.sasaki@earthsea-wizard.com" }]
 dependencies = [
     "numpy",
     "pandas",
