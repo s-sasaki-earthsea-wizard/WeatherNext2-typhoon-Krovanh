@@ -8,7 +8,7 @@ The variable names themselves are settled; see :mod:`wn2_typhoon.model_spec`.
 The forcing variables are not built here either: ``data_utils.add_derived_vars``
 computes them from the ``datetime`` and ``lon`` coordinates.
 
-Conventions read off the public 1 deg sample (``make smoke-cpu`` caches it
+Conventions read off the public 1 deg sample (``make smoke-mini`` caches it
 under ``data/cache/``):
 
     * dims ``batch, time, lat, lon, level``

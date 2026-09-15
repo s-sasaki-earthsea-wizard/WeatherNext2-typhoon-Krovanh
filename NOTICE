@@ -20,7 +20,7 @@ obtained unmodified from gs://dm_graphcast/weathernext2/params/:
     WeatherNext2_<2025_model1.npz
 
 The following checkpoint is used only by the local pipeline check
-(make smoke-cpu) and not for any published forecast:
+(make smoke-mini) and not for any published forecast:
 
     WeatherNextCyclones_Mini_<2024.npz
 

@@ -1,4 +1,4 @@
-"""CLI entry point: smoke_cpu.
+"""CLI entry point: smoke_mini.
 
 Exercises the whole inference path on the Mac before any GPU time is spent:
 config -> sample data -> input extraction -> rollout -> cyclone tracker. It
@@ -6,8 +6,8 @@ runs the 1 deg Mini checkpoint on the jax CPU backend, so it validates the
 plumbing rather than the science; WeatherNext2 at 0.25 deg needs an H100.
 
 Usage:
-    uv run python scripts/smoke_cpu.py --config configs/krovanh.yaml
-    uv run python scripts/smoke_cpu.py --steps 2 --members 1
+    uv run python scripts/smoke_mini.py --config configs/krovanh.yaml
+    uv run python scripts/smoke_mini.py --steps 2 --members 1
 """
 
 from __future__ import annotations

@@ -13,12 +13,18 @@ Requirements: docs/requirements.md. Design: docs/design.md.
 
 Phase 0 done: skeleton and initial commit (2026-09-16).
 Phase 1 in progress (2026-09-16): the model input contract is derived from the
-checkpoint task config (`make model-spec`) and the whole inference path runs on
-the Mac CPU with the 1 deg Mini checkpoint (`make smoke-cpu`). Remaining: ERA5
-download + input construction on the Mac, then environment setup and a smoke
-run on the RunPod H100.
+checkpoint task config (`make model-spec`), the whole inference path runs on
+the Mac CPU with the 1 deg Mini checkpoint (`make smoke-mini`), and the pod
+decisions are settled (docs/requirements.md 9-13). Remaining before the pod:
+ERA5 download, input construction, and turning run_inference/run_tracker into
+the per-member loop the pod needs. The current `rollout.predict` collects all
+members in memory, which is fine for the Mini smoke run but would need 137 GB
+at 0.25 deg.
 Phase 2: inference + tracking for the two cases.
-Phase 3: comparison, once the JMA post-analysis CSV includes storm 2624.
+Phase 3: comparison against the preliminary JMA table (T2624.pdf, available
+now, readable with `pdftotext -layout`), re-run against the post-analysis CSV
+when it reaches storm 2624. Measured 2026-09-16 the CSV stops at 2605, about
+3.7 months behind, so expect 2624 around the turn of the year.
 
 ## Hard constraints
 
@@ -36,8 +42,11 @@ Phase 3: comparison, once the JMA post-analysis CSV includes storm 2624.
 * Do not install `colabtools`. `weathernext` lists it but never imports it, and
   the PyPI project of that name is an unrelated third-party package. It is
   dropped via `override-dependencies` in pyproject.toml.
-* Never store full global forecast fields (~16 GiB per member). Keep tracks,
-  global surface variables, and the regional crop defined in the config.
+* Never store full global forecast fields (17.1 GB per member). Tracking runs
+  on the global field in memory; only the regional crop in the config
+  (`output.region`) and the track table are written. No global subset is kept.
+* The NaN target template is built on the pod from the input coordinates, never
+  shipped in the input file: 40 steps of it is another 17 GB.
 * All timestamps in code and data are UTC. Convert to JST only in prose.
 * ERA5 comes from the CDS API (ERA5T); ARCO-ERA5 lags by months.
 * Reuse the tracker bundled in `weathernext.cyclones`; do not write one.
@@ -53,6 +62,10 @@ Phase 3: comparison, once the JMA post-analysis CSV includes storm 2624.
 * make targets live in makefiles/*.mk with `## help` comments; keep them in
   sync when adding scripts.
 * Session notes go to .claude-notes/ (git-ignored).
+* Results live on the NAS under `$RESULTS_ROOT`, not in the working copy.
+  `runpod/sync.sh pull` symlinks `outputs/<case>` at them.
+* The pod's ssh alias must use an exposed TCP port; ssh.runpod.io carries no
+  rsync. Rewrite the `runpod` block in ~/.ssh/config for each new pod.
 
 ## License and attribution
 

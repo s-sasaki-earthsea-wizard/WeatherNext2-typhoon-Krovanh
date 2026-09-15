@@ -21,11 +21,15 @@ class Case:
         id: Case identifier used in file names (e.g. "init-2026-08-31T18").
         init_time: Initialization time, UTC ISO 8601.
         note: Free-text description.
+        seed_position: Observed storm centre at ``init_time`` as
+            ``(lat, lon_east)``, used to seed the cyclone tracker. None leaves
+            the tracker in cyclogenesis mode.
     """
 
     id: str
     init_time: str
     note: str = ""
+    seed_position: tuple[float, float] | None = None
 
 
 def load_raw(path: Path) -> dict[str, Any]:
@@ -52,5 +56,11 @@ def get_case(cfg: dict[str, Any], case_id: str) -> Case:
     """
     for entry in cfg["cases"]:
         if entry["id"] == case_id:
-            return Case(id=entry["id"], init_time=entry["init_time"], note=entry.get("note", ""))
+            seed = entry.get("seed_position")
+            return Case(
+                id=entry["id"],
+                init_time=entry["init_time"],
+                note=entry.get("note", ""),
+                seed_position=None if seed is None else (float(seed[0]), float(seed[1])),
+            )
     raise KeyError(f"Unknown case id: {case_id}")

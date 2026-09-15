@@ -1,12 +1,30 @@
 # Experiment configuration: Typhoon Krovanh, 2026 (JMA number 2624).
 # All timestamps are UTC, ISO 8601.
 
+# Storm facts from the JMA preliminary position table (T2624.pdf), which runs
+# from formation to the end of typhoon status. Times converted from JST.
 storm:
   jma_number: "2624"
   name: KROVANH
-  formation_time: "2026-09-01T00:00"      # upgraded to TS at 09 JST, 1 Sep 2026
-  extratropical_time: "2026-09-07T00:00"  # 09 JST, 7 Sep 2026
-  dissipation_time: "2026-09-10T00:00"    # 09 JST, 10 Sep 2026
+  formation_time: "2026-09-01T00:00"    # 09 JST 1 Sep, 22.6N 131.9E, 996 hPa
+  peak_time: "2026-09-03T00:00"         # 09 JST 3 Sep, 26.3N 130.5E, 985 hPa
+  # Weakened back to a tropical depression; it did NOT become extratropical.
+  # This is the last row of the position table, so the comparison window ends
+  # here even though the forecast runs to 240 h.
+  depression_time: "2026-09-07T00:00"   # 09 JST 7 Sep, 26.0N 132.0E
+  dissipation_time: "2026-09-10T00:00"  # 09 JST 10 Sep, from press reports
+
+# Reference track. Two sources, same storm, different release schedules.
+besttrack:
+  # Official post-analysis, the one the comparison will finally use. Includes
+  # the tropical-depression stage before formation (grade 2 rows), which the
+  # preliminary PDF does not. As of 2026-09-16 it stops at storm 2605
+  # (19 May 2026), i.e. roughly 3.7 months behind; expect 2624 around the turn
+  # of the year.
+  csv_url: "https://www.data.jma.go.jp/typhoon/position_table/table2026.csv"
+  # Preliminary values, available now. 3-hourly JST, pressure in hPa and
+  # maximum wind in m/s (the CSV uses knots).
+  preliminary_pdf_url: "https://www.data.jma.go.jp/typhoon/data/T2624.pdf"
 
 model:
   name: WeatherNext2            # WeatherNext2 | WeatherNextCyclones
@@ -36,22 +54,35 @@ forecast:
   seed: 0
 
 # One forecast run per case. Add entries to try more initialization times.
+#
+# seed_position seeds the cyclone tracker with an observed centre, as
+# [lat, lon_east]. Null means the tracker has to find the storm itself
+# (cyclogenesis mode), which is the point of the pre-formation case: no JMA
+# position exists at that time, because the preliminary table starts at
+# formation and the post-analysis CSV that carries the depression stage is
+# months away.
 cases:
   - id: init-2026-08-31T18
-    init_time: "2026-08-31T18:00"   # last TD analysis before TS upgrade (03 JST, 1 Sep)
-    note: just before formation
+    init_time: "2026-08-31T18:00"   # 03 JST 1 Sep, six hours before formation
+    note: before formation; tracker runs in cyclogenesis mode
+    seed_position: null
   - id: init-2026-09-01T00
-    init_time: "2026-09-01T00:00"   # TS upgrade time (09 JST, 1 Sep)
-    note: at formation
+    init_time: "2026-09-01T00:00"   # 09 JST 1 Sep, formation
+    note: at formation; tracker seeded from the JMA position
+    seed_position: [22.6, 131.9]
 
 output:
-  # Full forecast fields are ~16 GiB per member and are NOT stored.
-  # Keep the tracker output plus these subsets:
-  region:                        # all variables / levels, cropped
-    lat: [0, 50]
-    lon: [110, 170]
-  global_surface_vars:           # global, surface only
-    - mean_sea_level_pressure
-    - 10m_u_component_of_wind
-    - 10m_v_component_of_wind
-    - 2m_temperature
+  # A global member is 17.1 GB (103 fields x 40 steps at 0.25 deg) and is never
+  # stored. Tracking runs on the global fields in memory; only this crop is
+  # written, with every variable and level kept: 0.33 GB per member,
+  # 2.6 GB per 8-member case.
+  #
+  # Covers Taiwan, the coastal provinces from Shantou to Shanghai, the East
+  # China Sea, the Nansei islands and the whole Japanese archipelago out to
+  # Etorofu, with 7 degrees of margin south of the observed genesis point.
+  # The observed track fits in 22.3-29.8N, 126.5-132.6E. Widening it is a
+  # config edit; tracks are never clipped by it because the tracker sees the
+  # global field.
+  region:
+    lat: [15, 50]
+    lon: [115, 150]
