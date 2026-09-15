@@ -25,11 +25,34 @@ Mac: fetch_besttrack --> data/raw/jma/table2026.csv
 
 ## Model input contract
 
-* Two frames at t-6h and t; 0.25 deg; 13 pressure levels.
-* Variable names follow the GraphCast/GenCast convention in the sample
-  datasets under gs://dm_graphcast/weathernext2/dataset/. The exact input,
-  forcing and static lists are read from the checkpoint task config at
-  runtime and validated against the ERA5 request before any GPU time is spent.
+Read from `config.task` of the fiddle config bundled with weathernext
+(`weathernext/weathernext2/configs/<name>.json`), so it needs neither weights
+nor a GPU: `make model-spec`. `src/wn2_typhoon/model_spec.py` classifies the
+variables; the only table in the repository is the model-name to CDS-name
+mapping, and an input that does not resolve through it is a hard error.
+
+WeatherNext2 `<2025` asks for `input_duration: 12h` (two frames at t-6h and t)
+on 13 WeatherBench pressure levels, and 19 input variables:
+
+| Group | Count | Variables | CDS dataset |
+|---|---|---|---|
+| Pressure level | 6 x 13 | temperature, geopotential, u/v_component_of_wind, vertical_velocity, specific_humidity | `reanalysis-era5-pressure-levels` |
+| Single level | 7 | 2m_temperature, mean_sea_level_pressure, 10m_u/v_component_of_wind, sea_surface_temperature, 100m_u/v_component_of_wind | `reanalysis-era5-single-levels` |
+| Static | 2 | geopotential_at_surface (CDS name: `geopotential`), land_sea_mask | `reanalysis-era5-single-levels`, one timestamp |
+| Computed | 4 | year_progress_sin/cos, day_progress_sin/cos | none; `data_utils.add_derived_vars` |
+
+Consequences worth recording:
+
+* **No precipitation and no solar radiation on input.** `total_precipitation_6hr`
+  is a target only, and WeatherNext 2 does not use `toa_incident_solar_radiation`
+  at all, so the CDS request needs no accumulated fields.
+* **100 m winds are specific to WeatherNext2.** WeatherNextCyclones and its Mini
+  variant take 17 inputs and omit them, which is why the list is derived per
+  checkpoint rather than written down once.
+* `sea_surface_temperature` is NaN over land in ERA5. That is the convention the
+  model was trained with, so the NaNs are kept.
+* The 31 targets include 17 `cyclone_*` fields the model predicts directly; the
+  bundled direct tracker consumes those rather than deriving centres from MSLP.
 
 ## Memory and storage
 
