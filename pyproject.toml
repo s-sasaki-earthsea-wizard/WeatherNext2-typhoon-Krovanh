@@ -17,12 +17,22 @@ dependencies = [
 ]
 
 [dependency-groups]
-# RunPod (Linux, H100). Linux-only markers keep the Mac lock free of CUDA wheels.
-gpu = [
-    "weathernext @ git+https://github.com/google-deepmind/weathernext.git@v0.3.0 ; sys_platform == 'linux'",
-    "jax[cuda12] ; sys_platform == 'linux'",
-    "google-cloud-storage",
+# The model runtime itself. Shared by the Mac (CPU jax, smoke runs) and the pod.
+model = [
+    "weathernext @ git+https://github.com/google-deepmind/weathernext.git@v0.3.0",
+    "google-cloud-storage",  # anonymous access to gs://dm_graphcast
+    "h5netcdf",
     "zarr",
+]
+# RunPod (Linux, H100). The Linux-only marker keeps the Mac lock free of CUDA wheels.
+gpu = [
+    { include-group = "model" },
+    "jax[cuda12] ; sys_platform == 'linux'",
+]
+# Mac: run the 1 deg Mini model on the CPU backend to exercise the pipeline.
+cpu = [
+    { include-group = "model" },
+    "jax",
 ]
 # Mac: plots and best-track comparison.
 analysis = [
@@ -38,6 +48,11 @@ dev = [
 
 [tool.uv]
 default-groups = ["dev"]
+# weathernext 0.3.0 lists "colabtools" in install_requires, but the PyPI project
+# of that name is an unrelated third-party package (0.0.1), not Google's, and no
+# module under weathernext/ imports it or google.colab. The always-false marker
+# drops it from the resolution on every platform.
+override-dependencies = ["colabtools ; python_version < '3'"]
 environments = [
     "sys_platform == 'darwin'",
     "sys_platform == 'linux'",
