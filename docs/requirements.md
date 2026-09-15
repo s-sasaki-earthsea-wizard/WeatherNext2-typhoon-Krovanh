@@ -10,13 +10,20 @@ compared; no field-wise verification.
 
 ## Storm facts (JMA)
 
-| Event | UTC | JST |
-|---|---|---|
-| TS upgrade (formation) | 2026-09-01 00 | 09-01 09 |
-| Extratropical transition | 2026-09-07 00 | 09-07 09 |
-| Dissipation | 2026-09-10 00 | 09-10 09 |
+From the preliminary position table T2624.pdf.
 
-Formation position 22.6N 131.9E, 996 hPa. Minimum pressure 985 hPa, peak wind 45 kt.
+| Event | UTC | JST | Position |
+|---|---|---|---|
+| TS upgrade (formation) | 2026-09-01 00 | 09-01 09 | 22.6N 131.9E, 996 hPa |
+| Minimum pressure | 2026-09-03 00 | 09-03 09 | 26.3N 130.5E, 985 hPa, 23 m/s |
+| Weakened to a depression | 2026-09-07 00 | 09-07 09 | 26.0N 132.0E |
+| Dissipation | 2026-09-10 00 | 09-10 09 | press reports, not in the table |
+
+Krovanh weakened back into a tropical depression; it did not undergo
+extratropical transition, and an earlier note to that effect was wrong. The
+storm never had a storm-force wind radius, and the whole observed track fits
+in 22.3-29.8N, 126.5-132.6E: it looped around the Nansei islands rather than
+recurving away.
 
 ## Decisions
 
@@ -32,8 +39,17 @@ Formation position 22.6N 131.9E, 996 hPa. Minimum pressure 985 hPa, peak wind 45
    the ERA5 mismatch is accepted as part of the experiment.
 4. **Initial conditions**: ERA5 (ERA5T) from the CDS API. ARCO-ERA5 is months
    behind and unusable for this period.
-5. **Reference track**: JMA typhoon position table, official post-analysis CSV
-   only. The comparison step starts after the CSV includes storm 2624.
+5. **Reference track**: JMA typhoon position table. The official post-analysis
+   CSV is the target, but measured on 2026-09-16 it reaches only storm 2605
+   (19 May 2026) while being re-published as recently as 2026-09-09, so the
+   analysis itself runs about 3.7 months behind. Storm 2624 should appear
+   around the turn of the year. The preliminary table (T2624.pdf) is available
+   now, is machine readable with `pdftotext -layout`, and covers formation
+   (1 Sep 09 JST) to the return to depression status (7 Sep 09 JST) at 3-hourly
+   JST steps. Decision: build the comparison against the preliminary values,
+   labelled as such, and swap in the CSV when it lands. The two differ in
+   units (m/s against knots) and in coverage: only the CSV carries the
+   depression stage before formation.
 6. **Metrics**: great-circle position error per lead time (members, ensemble
    mean, spread), central pressure difference, genesis timing for the
    pre-formation case. Maximum wind is reference-only (10-min mean vs gridded
@@ -42,7 +58,29 @@ Formation position 22.6N 131.9E, 996 hPa. Minimum pressure 985 hPa, peak wind 45
 8. **Repository**: public on GitHub, Apache-2.0. The model weights are
    downloaded at run time and never vendored here; their CC BY 4.0
    attribution is recorded in NOTICE and the README (docs/license-notes.md).
-9. **Compute**: RunPod H100 80 GB, uv virtual environment, no Docker.
-   A **100 GB network volume** holds the venv, uv cache, weights, inputs and
-   outputs; the sizing is derived in docs/design.md. The pod is created per
-   run and the ssh alias in `~/.ssh/config` is rewritten each time.
+9. **Compute**: RunPod H100 80 GB PCIe (SXM only if throughput demands it),
+   uv virtual environment, no Docker. A **30 GB network volume** holds the
+   venv, uv cache, weights, inputs and the case being worked on; the sizing is
+   derived in docs/design.md. Results are pulled to the NAS after each case
+   rather than accumulating on the volume, so the volume never has to hold
+   more than one case. The pod is created per run with ssh over an exposed TCP
+   port (the ssh.runpod.io proxy supports no rsync), and the ssh alias in
+   `~/.ssh/config` is rewritten each time.
+10. **Stored output**: the regional crop only, at 15-50N 115-150E, all
+    variables and all 13 levels. Global fields exist only in memory during
+    tracking. The crop covers Taiwan, the Chinese coast, the East China Sea,
+    the Nansei islands and the Japanese archipelago; the observed track fits
+    well inside it. No global surface subset is kept: it is needed for the
+    forecast, not for the question being asked.
+11. **Results storage**: outputs live on the NAS at
+    `/Volumes/EW-NAS-Atoll/WeatherNext2-typhoon-Krovanh/`, with `outputs/` in
+    the working copy symlinked to it so analysis on the Mac needs no copying.
+12. **Tracker seeding**: the formation case is seeded with the JMA position
+    22.6N 131.9E. The pre-formation case cannot be seeded, because no
+    published JMA position exists six hours before formation until the
+    post-analysis CSV arrives; it runs in cyclogenesis mode, which is also the
+    scientifically interesting question for that case. A seeded re-run can be
+    added once the CSV lands, since tracking needs no GPU.
+13. **Budget**: a 30 USD credit is available. The first case is run with one
+    member to measure wall-clock before committing to the full ensemble.
+    Anything beyond roughly 100 USD is discussed before spending.

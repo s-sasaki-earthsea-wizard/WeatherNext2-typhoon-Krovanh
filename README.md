@@ -10,10 +10,14 @@ table (best track).
 ## Status
 
 - [x] Project skeleton
+- [x] Model input contract derived from the checkpoint config (`make model-spec`)
+- [x] Local pipeline check, model to tracker (`make smoke-mini`)
 - [ ] ERA5 download and WeatherNext 2 input construction (Mac)
 - [ ] Inference on RunPod H100 (uv virtual environment, no Docker)
 - [ ] Storm-centre tracking with the tracker bundled in `weathernext`
-- [ ] Comparison with the JMA best track (once the official CSV includes 2624)
+- [ ] Comparison against the preliminary JMA table, then against the official
+      CSV when it reaches storm 2624 (expected around the turn of the year;
+      the post-analysis runs about 3.7 months behind)
 
 ## Experiment summary
 
@@ -21,9 +25,11 @@ table (best track).
 |---|---|
 | Model | WeatherNext2_<2025, checkpoint model1 (0.25 deg, 13 levels) |
 | Initial conditions | ERA5 (ERA5T) from the CDS API, two frames (t-6h, t) |
-| Initialization times | 2026-08-31 18 UTC (TD stage), 2026-09-01 00 UTC (TS upgrade) |
+| Initialization times | 2026-08-31 18 UTC (before formation), 2026-09-01 00 UTC (formation) |
 | Lead time | 240 h (40 steps of 6 h) |
 | Ensemble | 8 members |
+| Compute | RunPod H100 80 GB, 30 GB volume, results pulled to the NAS |
+| Stored output | regional crop 15-50N 115-150E, all levels (2.6 GB per case) |
 | Reference | JMA typhoon position table, UTC |
 
 Details: [docs/requirements.md](docs/requirements.md), [docs/design.md](docs/design.md).
@@ -48,13 +54,48 @@ Python 3.12 is required (a `weathernext` dependency, `gdm-xarray-jax`, needs >= 
 
 ```bash
 # Mac
-uv sync --group analysis --group dev
+make setup          # uv sync --group cpu --group analysis --group dev
 make help
 
 # RunPod H100 (Linux)
 bash runpod/setup.sh
 make smoke-gpu
 ```
+
+### What the model wants as input
+
+The input variable list is never written down in this repository: it is read
+from the task config of the checkpoint itself, which ships inside the
+`weathernext` package, so it needs no weights, GPU or network access.
+
+```bash
+make model-spec     # 6 pressure-level + 7 single-level + 2 static + 4 computed
+```
+
+WeatherNext2 takes 19 inputs on 13 pressure levels over two frames (t-6h, t).
+Notably it needs no precipitation and no solar radiation on input, and it is
+the only bundled checkpoint that asks for 100 m winds. See
+[docs/design.md](docs/design.md).
+
+### Checking the pipeline before paying for a GPU
+
+```bash
+make smoke-mini     # 1 deg Mini checkpoint, two 6 h steps, under a minute
+```
+
+This runs the real path end to end -- config, the public sample forecast,
+input extraction, rollout, and the cyclone tracker both seeded and in
+cyclogenesis mode -- on a checkpoint small enough for a laptop. It validates
+the plumbing, not the science: WeatherNext2 at 0.25 deg needs an H100. The
+same target run on the pod exercises the GPU attention path, which is why it
+is not called `smoke-cpu`.
+
+### Results on the NAS
+
+Forecast output is pulled off the pod to `$RESULTS_ROOT` (the NAS by default,
+see `.env.example`) rather than accumulating on the billed volume.
+`runpod/sync.sh pull` symlinks `outputs/<case>` at the pulled directory, so the
+analysis targets run in the working copy without a second copy of the data.
 
 ## Model and data provenance
 
@@ -66,6 +107,7 @@ used unmodified.
 |---|---|---|
 | WeatherNext 2 code | [google-deepmind/weathernext](https://github.com/google-deepmind/weathernext) v0.3.0 | Apache-2.0 |
 | Checkpoint `WeatherNext2_<2025_model1.npz` | `gs://dm_graphcast/weathernext2/params/` | CC BY 4.0, (c) Google DeepMind |
+| Checkpoint `WeatherNextCyclones_Mini_<2024.npz` (local pipeline check only) | `gs://dm_graphcast/weathernext2/params/` | CC BY 4.0, (c) Google DeepMind |
 | ERA5 / ERA5T initial conditions | Copernicus Climate Data Store | Copernicus licence; contains modified Copernicus Climate Change Service information 2026 |
 | Typhoon best track | [JMA typhoon position table](https://www.data.jma.go.jp/typhoon/position_table/) | JMA website terms of use |
 
