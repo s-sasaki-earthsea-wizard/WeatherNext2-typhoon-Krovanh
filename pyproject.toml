@@ -1,0 +1,55 @@
+[project]
+name = "wn2-typhoon"
+version = "0.1.0"
+description = "WeatherNext 2 (FGN) forecast of Typhoon Krovanh (2026, JMA T2624) from ERA5 initial conditions, compared with the JMA best track"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "numpy",
+    "pandas",
+    "xarray<=2026.2.0",  # upper bound required by weathernext; keep Mac and pod aligned
+    "netcdf4",
+    "pyyaml",
+    "cdsapi",
+]
+
+[dependency-groups]
+# RunPod (Linux, H100). Linux-only markers keep the Mac lock free of CUDA wheels.
+gpu = [
+    "weathernext @ git+https://github.com/google-deepmind/weathernext.git@v0.3.0 ; sys_platform == 'linux'",
+    "jax[cuda12] ; sys_platform == 'linux'",
+    "google-cloud-storage",
+    "zarr",
+]
+# Mac: plots and best-track comparison.
+analysis = [
+    "matplotlib",
+    "cartopy",
+    "jupyterlab",
+    "zarr",
+]
+dev = [
+    "pytest",
+    "ruff",
+]
+
+[tool.uv]
+default-groups = ["dev"]
+environments = [
+    "sys_platform == 'darwin'",
+    "sys_platform == 'linux'",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/wn2_typhoon"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

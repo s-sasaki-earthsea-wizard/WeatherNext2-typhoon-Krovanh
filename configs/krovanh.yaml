@@ -1,0 +1,43 @@
+# Experiment configuration: Typhoon Krovanh, 2026 (JMA number 2624).
+# All timestamps are UTC, ISO 8601.
+
+storm:
+  jma_number: "2624"
+  name: KROVANH
+  formation_time: "2026-09-01T00:00"      # upgraded to TS at 09 JST, 1 Sep 2026
+  extratropical_time: "2026-09-07T00:00"  # 09 JST, 7 Sep 2026
+  dissipation_time: "2026-09-10T00:00"    # 09 JST, 10 Sep 2026
+
+model:
+  name: WeatherNext2            # WeatherNext2 | WeatherNextCyclones
+  split: "2025"                 # "<2025": trained on data through 2024
+  checkpoint: model1            # model1 .. model4
+  gcs_bucket: dm_graphcast
+  gpu_attention_type: triblockdiag_mha   # required when jax backend == "gpu"
+
+forecast:
+  step_hours: 6
+  lead_hours: 240               # 10 days = 40 autoregressive steps
+  num_members: 8
+  seed: 0
+
+# One forecast run per case. Add entries to try more initialization times.
+cases:
+  - id: init-2026-08-31T18
+    init_time: "2026-08-31T18:00"   # last TD analysis before TS upgrade (03 JST, 1 Sep)
+    note: just before formation
+  - id: init-2026-09-01T00
+    init_time: "2026-09-01T00:00"   # TS upgrade time (09 JST, 1 Sep)
+    note: at formation
+
+output:
+  # Full forecast fields are ~16 GiB per member and are NOT stored.
+  # Keep the tracker output plus these subsets:
+  region:                        # all variables / levels, cropped
+    lat: [0, 50]
+    lon: [110, 170]
+  global_surface_vars:           # global, surface only
+    - mean_sea_level_pressure
+    - 10m_u_component_of_wind
+    - 10m_v_component_of_wind
+    - 2m_temperature

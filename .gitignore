@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Secrets / local config
+.env
+.cdsapirc
+
+# Data and outputs (large, reproducible)
+data/*
+!data/.gitkeep
+outputs/*
+!outputs/.gitkeep
+*.nc
+*.npz
+*.zarr/
+*.grib
+
+# Session notes (not versioned by convention)
+.claude-notes/
+
+# OS
+.DS_Store
