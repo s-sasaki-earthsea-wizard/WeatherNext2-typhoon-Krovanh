@@ -21,6 +21,9 @@ outputs/*
 *.zarr/
 *.grib
 
+# First leg of a pull: results on the Mac's SSD, between pod and NAS
+staging/
+
 # Session notes (not versioned by convention)
 .claude-notes/
 
