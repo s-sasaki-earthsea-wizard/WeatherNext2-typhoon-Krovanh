@@ -16,9 +16,9 @@ table (best track).
 - [x] Ensemble rollout and storm-centre tracking, run end to end on the Mac
       against the 1 deg checkpoint
 - [ ] Inference on RunPod H100 (uv virtual environment, no Docker)
-- [ ] Comparison against the preliminary JMA table, then against the official
-      CSV when it reaches storm 2624 (expected around the turn of the year;
-      the post-analysis runs about 3.7 months behind)
+- [x] JMA reference track, preliminary and post-analysis read into one schema
+      (`make fetch-besttrack`)
+- [ ] Comparison of forecast tracks against it
 
 ## Experiment summary
 
@@ -105,6 +105,18 @@ return four. Frames are cached by timestamp and the two cases share the
 checkpoint's contract -- variable set, ascending latitude, longitudes in
 [0, 360), level order, frame spacing, which fields may contain NaN -- and
 refuses to write a file that would only fail once the weights were loaded.
+
+### The reference track
+
+```bash
+make fetch-besttrack    # post-analysis if it is out, preliminary otherwise
+```
+
+The JMA publishes each storm twice. The post-analysis CSV is the archival
+record but lags the season by about 3.7 months, so storm 2624 is not expected
+before the turn of the year; the preliminary PDF is out now. Both are read into
+one schema, so the comparison starts on the preliminary values and is re-run
+against the CSV later without changing anything downstream.
 
 ### Results on the NAS
 
