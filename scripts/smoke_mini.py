@@ -25,7 +25,7 @@ from wn2_typhoon.inference.load_model import (
     attention_type_for_backend,
     download_checkpoint,
 )
-from wn2_typhoon.inference.rollout import predict
+from wn2_typhoon.inference.rollout import stream_member
 from wn2_typhoon.inference.tracker import initial_storms_from_positions, track_member
 from wn2_typhoon.model_spec import (
     config_name_for,
@@ -169,27 +169,35 @@ def main() -> None:
         )
 
     with stage(f"Rollout: {args.members} member(s), {args.steps} step(s)"):
-        predictions = predict(
-            predictor_fn,
-            inputs,
-            targets * float("nan"),
-            forcings,
-            num_members=args.members,
-            seed=cfg["forecast"]["seed"],
-        )
-        print(f"   predictions {dict(predictions.sizes)}")
+        # The same streaming path the pod uses: each step is reduced to the
+        # tracker variables globally plus the regional crop, and the full
+        # global field is never held.
+        region = cfg["output"]["region"]
+        members = [
+            stream_member(
+                predictor_fn,
+                inputs,
+                targets * float("nan"),
+                forcings,
+                member=index,
+                seed=cfg["forecast"]["seed"],
+                region=region,
+            )
+            for index in range(args.members)
+        ]
+        global_ds, crop_ds = members[0]
+        print(f"   tracker fields kept globally: {len(global_ds.data_vars)}"
+              f" of {len(spec.target_vars)}, {dict(global_ds.sizes)}")
+        print(f"   regional crop {dict(crop_ds.sizes)}")
 
     with stage("Cyclone tracker, seeded from an observed centre"):
         init_time = example_batch.isel(batch=0, time=1).datetime.values
-        member = predictions.isel(batch=0).isel(sample=0)
         positions = seed_from_sample(example_batch)
         print(f"   init time {init_time}")
-        print(f"   cyclone fields available: "
-              f"{sum(v.startswith('cyclone_') for v in member.data_vars)}")
         print(f"   seed: {positions[0][0]} at "
               f"{positions[0][1]:.1f}N {positions[0][2]:.1f}E")
         seeded = track_member(
-            member, init_time, initial_storms_from_positions(positions, init_time)
+            global_ds, init_time, initial_storms_from_positions(positions, init_time)
         )
         print(f"   track rows: {len(seeded)}")
         if len(seeded):
@@ -200,7 +208,7 @@ def main() -> None:
         # Exercises the path the pre-formation case uses. Tracks shorter than
         # 2.5 days are dropped by the v1 config, so a short rollout finding
         # nothing is the expected outcome; not crashing is the point.
-        found = track_member(member, init_time)
+        found = track_member(global_ds, init_time)
         print(f"   track rows: {len(found)}")
 
     print("\nsmoke run complete")
