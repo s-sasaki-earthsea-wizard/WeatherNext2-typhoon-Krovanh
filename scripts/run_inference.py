@@ -8,6 +8,16 @@ cyclone fields, which are never written to disk: 2.8 GB per member would be
 Members are independent and each writes its own files, so an interrupted run
 resumes with --member-start.
 
+Tracking runs in cyclogenesis mode for every case, with no observed position
+handed to the tracker. Measured on 2026-09-17 against the formation case,
+seeding the tracker with the JMA centre and letting it find the storm itself
+give identical tracks -- 0.0 km and 0.00 hPa at every step of all 8 members --
+so the seed only ever contributed its own lead-0 row. Dropping it costs
+nothing, keeps observed values out of the forecast tracks entirely, and makes
+the cases comparable: the tracker discards cyclogenesis tracks shorter than
+2.5 days but never a seeded one, so seeding some cases and not others would
+censor them differently. See scripts/run_tracker.py to re-track with a seed.
+
 Usage (on the pod):
     uv run python scripts/run_inference.py --config configs/krovanh.yaml \\
         --case init-2026-09-01T00
@@ -24,15 +34,11 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from wn2_typhoon.config import Case, get_case, load_raw
+from wn2_typhoon.config import get_case, load_raw
 from wn2_typhoon.inference.inputs import split_for_rollout
 from wn2_typhoon.inference.load_model import build_predictor, download_checkpoint
 from wn2_typhoon.inference.rollout import save_zarr, stream_member
-from wn2_typhoon.inference.tracker import (
-    build_tracker,
-    initial_storms_from_positions,
-    track_member,
-)
+from wn2_typhoon.inference.tracker import build_tracker, track_member
 from wn2_typhoon.model_spec import config_name_for, load_spec, load_task_config
 from wn2_typhoon.utils.logs import configure
 
@@ -61,26 +67,6 @@ def parse_args() -> argparse.Namespace:
         "--verbose", action="store_true", help="keep third-party INFO logs"
     )
     return parser.parse_args()
-
-
-def seed_storms(case: Case) -> pd.DataFrame | None:
-    """Build the tracker's initial-storm table for a case.
-
-    Args:
-        case: The case being run.
-
-    Returns:
-        A one-row table at the observed centre, or None when no observed
-        position exists and the tracker has to find the storm itself.
-    """
-    if case.seed_position is None:
-        logger.info("No seed position: the tracker runs in cyclogenesis mode")
-        return None
-    lat, lon = case.seed_position
-    logger.info("Seeding the tracker at %.1fN %.1fE", lat, lon)
-    return initial_storms_from_positions(
-        [(case.id, lat, lon)], np.datetime64(case.init_time)
-    )
 
 
 def main() -> None:
@@ -125,8 +111,8 @@ def main() -> None:
     )
 
     init_time = np.datetime64(case.init_time)
-    initial_storms = seed_storms(case)
     tracker = build_tracker()
+    logger.info("Tracking in cyclogenesis mode; no observed position is used")
 
     for member in range(args.member_start, args.member_start + members):
         started = time.monotonic()
@@ -141,12 +127,7 @@ def main() -> None:
         )
         rolled = time.monotonic()
 
-        tracks = track_member(
-            global_ds,
-            init_time,
-            None if initial_storms is None else initial_storms.copy(),
-            tracker=tracker,
-        )
+        tracks = track_member(global_ds, init_time, None, tracker=tracker)
         tracks.insert(0, "member", member)
         tracks.to_csv(out_dir / f"tracks-member-{member:02d}.csv", index=False)
 

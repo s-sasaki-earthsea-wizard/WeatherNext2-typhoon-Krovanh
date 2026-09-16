@@ -321,3 +321,33 @@ def fetch_position_table(year: int, out_path: Path) -> Path:
         ``out_path``.
     """
     return _download(POSITION_TABLE_URL.format(year=year), out_path)
+
+
+def load_track(csv_path: Path) -> pd.DataFrame:
+    """Read the reference track written by ``scripts/fetch_besttrack.py``.
+
+    Both releases arrive here in the same schema, so nothing downstream has to
+    know which one it got beyond reading the ``source`` column.
+
+    Args:
+        csv_path: Path to the stored track, normally
+            ``data/interim/besttrack.csv``.
+
+    Returns:
+        The track in :data:`COLUMNS` order, sorted by time, with ``time`` as
+        timezone-naive UTC.
+
+    Raises:
+        FileNotFoundError: If the file does not exist; ``make fetch-besttrack``
+            creates it.
+        ValueError: If the file does not carry the expected schema.
+    """
+    if not csv_path.exists():
+        raise FileNotFoundError(
+            f"{csv_path} is missing; run 'make fetch-besttrack' to create it"
+        )
+    frame = pd.read_csv(csv_path, parse_dates=["time"])
+    missing = [name for name in COLUMNS if name not in frame.columns]
+    if missing:
+        raise ValueError(f"{csv_path} is missing columns: {', '.join(missing)}")
+    return frame[COLUMNS].sort_values("time").reset_index(drop=True)

@@ -21,15 +21,16 @@ class Case:
         id: Case identifier used in file names (e.g. "init-2026-08-31T18").
         init_time: Initialization time, UTC ISO 8601.
         note: Free-text description.
-        seed_position: Observed storm centre at ``init_time`` as
-            ``(lat, lon_east)``, used to seed the cyclone tracker. None leaves
-            the tracker in cyclogenesis mode.
+        observed_position: Analysed storm centre at ``init_time`` as
+            ``(lat, lon_east)``, or None when no published position exists
+            yet. This is reference data, not an input: tracking always runs
+            in cyclogenesis mode. See :func:`get_case`.
     """
 
     id: str
     init_time: str
     note: str = ""
-    seed_position: tuple[float, float] | None = None
+    observed_position: tuple[float, float] | None = None
 
 
 def load_raw(path: Path) -> dict[str, Any]:
@@ -47,20 +48,34 @@ def load_raw(path: Path) -> dict[str, Any]:
 def get_case(cfg: dict[str, Any], case_id: str) -> Case:
     """Return the case with the given id.
 
+    ``observed_position`` was called ``seed_position`` while it was fed to the
+    tracker. Measured on 2026-09-17, seeding changes nothing past lead 0, so
+    it is no longer used that way and the name would now mislead; the old key
+    is rejected rather than silently ignored.
+
     Args:
         cfg: Parsed configuration (see :func:`load_raw`).
         case_id: Value of the ``id`` field under ``cases``.
 
     Raises:
         KeyError: If no case matches.
+        ValueError: If a case still carries the retired ``seed_position`` key.
     """
     for entry in cfg["cases"]:
         if entry["id"] == case_id:
-            seed = entry.get("seed_position")
+            if "seed_position" in entry:
+                raise ValueError(
+                    f"Case {case_id} uses seed_position, which was retired: "
+                    "tracking no longer seeds. Rename it to observed_position."
+                )
+            position = entry.get("observed_position")
             return Case(
                 id=entry["id"],
                 init_time=entry["init_time"],
                 note=entry.get("note", ""),
-                seed_position=None if seed is None else (float(seed[0]), float(seed[1])),
+                observed_position=(
+                    None if position is None
+                    else (float(position[0]), float(position[1]))
+                ),
             )
     raise KeyError(f"Unknown case id: {case_id}")

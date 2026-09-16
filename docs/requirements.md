@@ -27,9 +27,16 @@ recurving away.
 
 ## Decisions
 
-1. **Two initialization times**, run as separate cases; more may be added
-   depending on results: 2026-08-31 18 UTC (TD stage, just before formation)
-   and 2026-09-01 00 UTC (TS upgrade).
+1. **Five initialization times**, run as separate cases, 6 h apart and
+   spanning 12 h either side of formation: 2026-08-31 12 and 18 UTC (TD
+   stage), 2026-09-01 00 UTC (TS upgrade), and 2026-09-01 06 and 12 UTC.
+   The first two were run on 2026-09-16; the other three were added on
+   2026-09-17 once those results were in hand. Two points could show that
+   skill depends on the initialization, but not how, and they could not show
+   genesis timing at all: in cyclogenesis mode the tracker cannot report a
+   storm before the first rollout step, so the 18 UTC case can only ever
+   place genesis at or after the observed time. An initialization 12 h ahead
+   is the shortest one that can resolve an early genesis.
 2. **Forecast length 240 h** (40 steps of 6 h), covering the storm through
    dissipation.
 3. **Model**: WeatherNext2_<2025, checkpoint model1, 8 ensemble members.
@@ -76,12 +83,32 @@ recurving away.
     `/Volumes/EW-NAS-Atoll/Projects/personal-dev/WeatherNext2-typhoon-Krovanh/`,
     with `outputs/` in the working copy symlinked to it so analysis on the Mac
     needs no copying.
-12. **Tracker seeding**: the formation case is seeded with the JMA position
-    22.6N 131.9E. The pre-formation case cannot be seeded, because no
-    published JMA position exists six hours before formation until the
-    post-analysis CSV arrives; it runs in cyclogenesis mode, which is also the
-    scientifically interesting question for that case. A seeded re-run can be
-    added once the CSV lands, since tracking needs no GPU.
+12. **Tracker seeding: none, in any case.** Every case is tracked in
+    cyclogenesis mode, so no observed position ever enters a forecast track.
+    The earlier decision seeded the formation case with the JMA centre; that
+    was reversed on 2026-09-17 after measuring what the seed actually did.
+
+    Re-tracking `init-2026-09-01T00` from the stored crop twice, once seeded
+    and once not, gives **identical tracks past lead 0**: 0.0 km and 0.00 hPa
+    at every step of all 8 members. Cyclogenesis mode also found the storm
+    unaided in 8 of 8 members, 36-110 km from the JMA position, with the
+    nearest other storm about 1640 km away. The seed contributed only its own
+    lead-0 row, which is the JMA position echoed back with unit probability
+    and no pressure, and which has to be excluded from any error curve.
+
+    Two reasons to drop it rather than keep something harmless. The tracker
+    discards cyclogenesis tracks shorter than 2.5 days but never discards a
+    seeded track, so seeding the post-formation cases and not the others
+    would censor the two groups differently, and the weakening question is
+    precisely about short-lived storms. And seeding only from formation
+    onwards would put a mode change at the boundary the five cases exist to
+    measure, confounding a better analysis with being handed the answer.
+
+    `observed_position` stays in the config as reference data: it is what the
+    initial-state error is quoted against. `scripts/run_tracker.py
+    --seed-position` re-runs a seeded track from the stored crop for anyone
+    who wants to repeat the check, and `--keep-short-tracks` distinguishes a
+    genesis miss from a storm that formed and died inside 2.5 days.
 13. **Budget**: a 30 USD credit is available. The first case is run with one
     member to measure wall-clock before committing to the full ensemble.
     Anything beyond roughly 100 USD is discussed before spending.
