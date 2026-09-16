@@ -1,11 +1,19 @@
 """Autoregressive ensemble rollout.
 
-Memory strategy: a 10-day, 0.25 deg forecast with all variables is ~16 GiB
-per member in host RAM, so members are generated one at a time. For each
-member: rollout -> tracker -> save subsets (regional crop of all fields,
-global surface fields) -> free memory. Member ``i`` uses
-``jax.random.fold_in(PRNGKey(seed), i)`` so runs are reproducible and the
-first N members stay identical when the ensemble grows.
+Memory strategy. A 10-day 0.25 deg forecast is 103 fields over 40 steps, or
+17.1 GB per member, and it is never held whole. The generator yields one step
+at a time and :func:`stream_member` reduces each step immediately to the two
+things that are wanted:
+
+    * the variables the cyclone tracker reads, globally, because the storm may
+      be anywhere -- 17 of the 103 fields, so 2.8 GB over the rollout
+    * the regional crop from the config, all variables and levels, 0.33 GB
+
+Everything else is dropped as it arrives, which keeps a member near 3 GB
+rather than 17 GB and lets the pod run with ordinary host memory.
+
+Member ``i`` uses ``jax.random.fold_in(PRNGKey(seed), i)`` so runs are
+reproducible and the first N members stay identical when the ensemble grows.
 """
 
 from __future__ import annotations
@@ -16,62 +24,113 @@ from typing import Any
 import xarray as xr
 
 
-def predict(
-    predictor_fn: Any,
-    inputs: xr.Dataset,
-    targets_template: xr.Dataset,
-    forcings: xr.Dataset,
-    num_members: int,
-    seed: int = 0,
-    steps_per_chunk: int = 1,
-) -> xr.Dataset:
-    """Run the autoregressive rollout for a block of ensemble members.
+def member_rng(seed: int, member: int) -> Any:
+    """Return the RNG key for one ensemble member.
+
+    Args:
+        seed: Base seed from the config.
+        member: Member index.
+
+    Returns:
+        A jax PRNG key.
+    """
+    import jax
+
+    return jax.random.fold_in(jax.random.PRNGKey(seed), member)
+
+
+def crop(dataset: xr.Dataset, region: dict) -> xr.Dataset:
+    """Cut a dataset down to the configured region.
+
+    Args:
+        dataset: A forecast, or one chunk of one, on ascending lat and lon.
+        region: ``{"lat": [min, max], "lon": [min, max]}`` in degrees, with
+            longitudes east.
+
+    Returns:
+        The cropped dataset.
+    """
+    return dataset.sel(
+        lat=slice(*region["lat"]), lon=slice(*region["lon"])
+    )
+
+
+def stream_member(predictor_fn: Any, inputs: xr.Dataset,
+                  targets_template: xr.Dataset, forcings: xr.Dataset,
+                  member: int, seed: int, region: dict,
+                  global_vars: list[str] | None = None,
+                  steps_per_chunk: int = 1) -> tuple[xr.Dataset, xr.Dataset]:
+    """Roll out one member, reducing each step as it arrives.
 
     Args:
         predictor_fn: Pmapped forward function from
             ``inference.load_model.build_predictor``.
         inputs: The two input frames.
-        targets_template: NaN-filled template defining the forecast steps.
+        targets_template: NaN-filled template defining the forecast steps. It
+            may be dask-backed; the generator computes one chunk at a time.
         forcings: Forcing variables over the target times.
-        num_members: Number of members, which must be a multiple of the number
-            of local devices.
-        seed: Base RNG seed. Member ``i`` uses ``fold_in(PRNGKey(seed), i)`` so
-            the first N members are unchanged when the ensemble grows.
+        member: Member index, which selects the RNG key.
+        seed: Base RNG seed.
+        region: Crop passed to :func:`crop`.
+        global_vars: Variables to retain globally. Defaults to the ones the
+            cyclone tracker reads.
         steps_per_chunk: Rollout steps per generator chunk.
 
     Returns:
-        Forecast dataset with a ``sample`` dimension of length ``num_members``.
+        ``(global_subset, regional_crop)``, both with the ``batch`` and
+        ``sample`` dimensions dropped.
     """
     import jax
     import numpy as np
     from weathernext.utils import rollout as wn_rollout
 
-    rng = jax.random.PRNGKey(seed)
-    rngs = np.stack(
-        [jax.random.fold_in(rng, i) for i in range(num_members)], axis=0
+    from wn2_typhoon.inference.tracker import tracker_variables
+
+    rngs = np.stack([member_rng(seed, member)], axis=0)
+    global_chunks: list[xr.Dataset] = []
+    crop_chunks: list[xr.Dataset] = []
+
+    for chunk in wn_rollout.chunked_prediction_generator_multiple_runs(
+        predictor_fn=predictor_fn,
+        rngs=rngs,
+        inputs=inputs,
+        targets_template=targets_template,
+        forcings=forcings,
+        num_steps_per_chunk=steps_per_chunk,
+        num_samples=1,
+        pmap_devices=jax.local_devices(),
+    ):
+        chunk = chunk.isel(batch=0, sample=0, drop=True)
+        names = global_vars if global_vars is not None else tracker_variables(chunk)
+        global_chunks.append(chunk[names])
+        crop_chunks.append(crop(chunk, region))
+        del chunk
+
+    return (
+        xr.concat(global_chunks, dim="time"),
+        xr.concat(crop_chunks, dim="time"),
     )
-    chunks = list(
-        wn_rollout.chunked_prediction_generator_multiple_runs(
-            predictor_fn=predictor_fn,
-            rngs=rngs,
-            inputs=inputs,
-            targets_template=targets_template,
-            forcings=forcings,
-            num_steps_per_chunk=steps_per_chunk,
-            num_samples=num_members,
-            pmap_devices=jax.local_devices(),
-        )
-    )
-    return xr.combine_by_coords(chunks)
 
 
-def save_subsets(forecast: xr.Dataset, out_dir: Path, region: dict, surface_vars: list[str]) -> None:
-    """Persist the retained subsets of one member's forecast as zarr.
+def save_zarr(forecast: xr.Dataset, path: Path) -> Path:
+    """Write a forecast subset as compressed zarr.
+
+    Only the regional crop is written. Keeping the global cyclone fields too
+    would be convenient for re-tracking, but they do not compress: unlike the
+    training targets, which are 94 per cent NaN and 99.6 per cent exact zero,
+    the model predicts dense small values everywhere, measured at a ratio of
+    1.09. That is 2.6 GB per member and 21 GB per case. The crop already
+    carries all 17 cyclone fields, so re-tracking pads it back to a global grid
+    instead; see ``tracker.pad_to_global``.
 
     Args:
-        forecast: Output of :func:`run_member`.
-        out_dir: ``outputs/<case>/member-XX/``.
-        region: ``{"lat": [min, max], "lon": [min, max]}``.
-        surface_vars: Global surface variables to keep.
+        forecast: A subset from :func:`stream_member`.
+        path: Destination store.
+
+    Returns:
+        ``path``.
     """
-    raise NotImplementedError("TODO: crop + compressed zarr")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    encoding = {name: {"compressors": "auto"} for name in forecast.data_vars}
+    forecast.to_zarr(path, mode="w", encoding=encoding, consolidated=True)
+    return path

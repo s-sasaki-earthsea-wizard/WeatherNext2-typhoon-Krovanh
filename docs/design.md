@@ -14,19 +14,22 @@ burn GPU hours.
 ## Data flow
 
 ```
-Mac  CDS (ERA5T) --download_era5--> data/raw/era5/<case>/*.nc
-                 --prepare_inputs-> data/interim/<case>/inputs.nc   (0.72 GB)
+Mac  CDS (ERA5T) --download_era5--> data/raw/era5/{pressure,single}_levels_<stamp>.nc
+                 --prepare_inputs-> data/interim/<case>/inputs.nc   (~0.3 GB)
                  --sync.sh push---> pod:/workspace/.../data/interim/<case>/
-pod  run_inference: per member, rollout (global, in RAM)
-                                -> run_tracker  -> outputs/<case>/tracks.csv
-                                -> regional crop -> outputs/<case>/member-XX.zarr
+pod  run_inference: per member, rollout (global, streamed, never stored)
+                                -> track     -> outputs/<case>/tracks.csv
+                                -> crop      -> outputs/<case>/member-XX.zarr
                  --sync.sh pull--> NAS:/Volumes/EW-NAS-Atoll/.../outputs/<case>/
-Mac  fetch_besttrack --> data/raw/jma/{T2624.pdf, table2026.csv}
+Mac  run_tracker  --> outputs/<case>/tracks-retracked.csv   (optional, no GPU)
+     fetch_besttrack --> data/raw/jma/{T2624.pdf, table2026.csv}
      evaluate        --> outputs/<case>/{errors.csv, figures/}
 ```
 
-`outputs/` in the working copy is a symlink to the NAS, so the last two steps
-read what the pull wrote without a second copy.
+Raw ERA5 frames are named after the timestamp they hold and shared by every
+case, because the two Krovanh cases have the 2026-08-31 18 UTC frame in
+common. `outputs/<case>` in the working copy is a symlink to the NAS, so the
+analysis steps read what the pull wrote without a second copy.
 
 ## Model input contract
 
@@ -107,18 +110,43 @@ so:
 | Item | Size |
 |---|---|
 | One checkpoint | 0.74 GB |
-| ERA5 input per case (2 frames, 172 fields) | 0.72 GB |
-| Full forecast per member (40 steps, global) | 17.1 GB, never written |
+| ERA5 input per case (2 frames, 172 fields, compressed NetCDF) | ~0.3 GB |
+| Full forecast per member (40 steps, global) | 17.1 GB, never held whole |
+| Peak host memory per member (tracker fields + crop) | ~3 GB |
 | Regional crop per member (15-50N, 115-150E, 141 x 141) | 0.33 GB |
 | Retained per case (8 members plus tracks) | 2.6 GB |
 | uv venv + cache on the volume | ~6 GB |
 
-Members are generated one at a time (rollout -> tracker -> save crop -> free)
-so host RAM stays around 20 GB and nothing global ever reaches disk.
+Members are generated one at a time and each rollout step is reduced the
+moment it arrives, so a full global member never exists at once. Two things
+are kept from each step:
+
+* the 17 cyclone fields the tracker reads, globally, because the storm can be
+  anywhere: 2.8 GB accumulated over the rollout
+* the regional crop, every variable and level: 0.33 GB
+
+Everything else is dropped, which holds a member near 3 GB instead of 17 GB.
+After the rollout the tracker consumes the global cyclone fields in memory and
+only the crop and the track table are written.
 
 The NaN target template that sizes the rollout is **not** part of the input
 file: materialising 40 steps of it would cost another 17 GB. It is built on the
-pod from the input coordinates.
+pod from the input coordinates, dask-backed and chunked one step at a time,
+which is enough because `rollout` slices one chunk and calls `.compute()` on
+it. `tests/test_inputs.py` pins that a two-frame file plus that template splits
+into exactly what the upstream helper produces from a full one.
+
+### Why the global cyclone fields are not written
+
+They would make re-tracking trivial, and the training targets in the public
+sample are 94 per cent NaN and 99.6 per cent exact zero, which compresses about
+180-fold. Model output does not behave that way: it is dense small values
+everywhere, measured at a compression ratio of 1.09, so storing it would cost
+2.6 GB per member and 21 GB per case. The crop already carries all 17 cyclone
+fields, so `run_tracker` pads it back onto a global grid with zeros instead --
+the tracker rejects any grid that is not the full [0, 360) in longitude. On the
+1 deg check that reproduced the global tracker's positions exactly, which holds
+as long as the storm stays well inside the region.
 
 **Network volume: 30 GB.** Worst case on the volume is the venv and cache
 (~6 GB), Python (0.1 GB), one checkpoint (0.74 GB), both cases' inputs

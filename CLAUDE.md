@@ -12,14 +12,13 @@ Requirements: docs/requirements.md. Design: docs/design.md.
 ## Current phase
 
 Phase 0 done: skeleton and initial commit (2026-09-16).
-Phase 1 in progress (2026-09-16): the model input contract is derived from the
-checkpoint task config (`make model-spec`), the whole inference path runs on
-the Mac CPU with the 1 deg Mini checkpoint (`make smoke-mini`), and the pod
-decisions are settled (docs/requirements.md 9-13). Remaining before the pod:
-ERA5 download, input construction, and turning run_inference/run_tracker into
-the per-member loop the pod needs. The current `rollout.predict` collects all
-members in memory, which is fine for the Mini smoke run but would need 137 GB
-at 0.25 deg.
+Phase 1 done (2026-09-16): the input contract is derived from the checkpoint
+(`make model-spec`), the pipeline runs on the Mac (`make smoke-mini`), the pod
+decisions are settled (docs/requirements.md 9-13), ERA5 is downloaded and
+converted with a contract check (`make download-era5-all`, `make prepare-inputs`),
+and `run_inference` / `run_tracker` are real. Both were exercised end to end on
+the Mac against the Mini checkpoint, which is the same code path the pod runs.
+Next: create the pod and measure one member before committing the ensemble.
 Phase 2: inference + tracking for the two cases.
 Phase 3: comparison against the preliminary JMA table (T2624.pdf, available
 now, readable with `pdftotext -layout`), re-run against the post-analysis CSV
@@ -42,9 +41,15 @@ when it reaches storm 2624. Measured 2026-09-16 the CSV stops at 2605, about
 * Do not install `colabtools`. `weathernext` lists it but never imports it, and
   the PyPI project of that name is an unrelated third-party package. It is
   dropped via `override-dependencies` in pyproject.toml.
-* Never store full global forecast fields (17.1 GB per member). Tracking runs
-  on the global field in memory; only the regional crop in the config
-  (`output.region`) and the track table are written. No global subset is kept.
+* Never store full global forecast fields (17.1 GB per member). `stream_member`
+  reduces each rollout step as it arrives to the tracker's variables globally
+  plus the regional crop, so a member peaks near 3 GB. Only the crop
+  (`output.region`) and the track table are written. The global cyclone fields
+  are not written either: model output does not compress (ratio 1.09, unlike
+  the 180x of the training targets), so it would be 21 GB per case.
+* The cyclone tracker only accepts a full [0, 360) longitude grid. Re-tracking
+  a stored crop goes through `tracker.pad_to_global`; on the 1 deg check that
+  reproduced the global tracker's positions exactly.
 * The NaN target template is built on the pod from the input coordinates, never
   shipped in the input file: 40 steps of it is another 17 GB.
 * All timestamps in code and data are UTC. Convert to JST only in prose.

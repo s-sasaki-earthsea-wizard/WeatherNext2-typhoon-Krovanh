@@ -12,9 +12,10 @@ table (best track).
 - [x] Project skeleton
 - [x] Model input contract derived from the checkpoint config (`make model-spec`)
 - [x] Local pipeline check, model to tracker (`make smoke-mini`)
-- [ ] ERA5 download and WeatherNext 2 input construction (Mac)
+- [x] ERA5 download and WeatherNext 2 input construction (Mac)
+- [x] Ensemble rollout and storm-centre tracking, run end to end on the Mac
+      against the 1 deg checkpoint
 - [ ] Inference on RunPod H100 (uv virtual environment, no Docker)
-- [ ] Storm-centre tracking with the tracker bundled in `weathernext`
 - [ ] Comparison against the preliminary JMA table, then against the official
       CSV when it reaches storm 2624 (expected around the turn of the year;
       the post-analysis runs about 3.7 months behind)
@@ -89,6 +90,21 @@ cyclogenesis mode -- on a checkpoint small enough for a laptop. It validates
 the plumbing, not the science: WeatherNext2 at 0.25 deg needs an H100. The
 same target run on the pod exercises the GPU attention path, which is why it
 is not called `smoke-cpu`.
+
+### Getting the inputs
+
+```bash
+make download-era5-all   # 7 CDS requests, ~0.45 GB, shared across both cases
+make prepare-inputs CASE=init-2026-08-31T18
+```
+
+The download asks for one frame per request: the CDS expands year/month/day/time
+as a cross product, so a pair of frames straddling midnight would otherwise
+return four. Frames are cached by timestamp and the two cases share the
+2026-08-31 18 UTC one. `prepare_inputs` checks the result against the
+checkpoint's contract -- variable set, ascending latitude, longitudes in
+[0, 360), level order, frame spacing, which fields may contain NaN -- and
+refuses to write a file that would only fail once the weights were loaded.
 
 ### Results on the NAS
 

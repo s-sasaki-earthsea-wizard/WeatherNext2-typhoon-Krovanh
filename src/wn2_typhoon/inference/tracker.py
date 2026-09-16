@@ -47,6 +47,52 @@ INITIAL_STORM_DTYPES = {
 TRACKER_OVERRIDES = {"enforce_physically_consistent_quadrants_and_winds": False}
 
 
+def tracker_variables(dataset: xr.Dataset) -> list[str]:
+    """Return the variables of a forecast the direct tracker actually reads.
+
+    The tracker declares 159 candidate names covering every warning centre;
+    WeatherNext 2 predicts 17 of them. Knowing which lets the rollout keep only
+    those globally and crop everything else, which is the difference between
+    2.8 GB and 17.1 GB of host memory per member.
+
+    Args:
+        dataset: A forecast, or one chunk of one.
+
+    Returns:
+        The intersection, in the dataset's own order.
+    """
+    from weathernext.cyclones import direct_tracker
+
+    wanted = set(direct_tracker.DIRECT_TRACKER_CYCLONE_VARIABLES)
+    return [name for name in dataset.data_vars if name in wanted]
+
+
+def pad_to_global(dataset: xr.Dataset, resolution: float) -> xr.Dataset:
+    """Place a regional crop back on a global grid, padded with zeros.
+
+    ``tracker_utils.bilinear_interpolation_with_lon_wraparound`` rejects any
+    grid that is not the full [0, 360) in longitude, so a stored crop cannot be
+    handed to the tracker directly. Padding with zeros restores a grid it
+    accepts: zero existence probability is below the cyclogenesis threshold, so
+    nothing is invented outside the region.
+
+    What this cannot do is see a storm outside the crop, and a track that
+    reaches the edge will interpolate against the zeros beyond it. The tracks
+    ``run_inference`` writes come from the real global field and stay the
+    authoritative ones.
+
+    Args:
+        dataset: A regional crop with ascending ``lat`` and ``lon``.
+        resolution: Grid spacing in degrees.
+
+    Returns:
+        The same data on a global grid, zero outside the crop.
+    """
+    lat = np.arange(-90.0, 90.0 + resolution / 2, resolution, dtype="float32")
+    lon = np.arange(0.0, 360.0, resolution, dtype="float32")
+    return dataset.reindex(lat=lat, lon=lon, fill_value=0.0)
+
+
 def build_tracker(**overrides: Any) -> Any:
     """Construct the 6-hourly direct tracker from its bundled config.
 
