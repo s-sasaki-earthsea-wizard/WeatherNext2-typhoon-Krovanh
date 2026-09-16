@@ -1,7 +1,7 @@
 ## ---- RunPod ----
 RUNPOD_HOST    ?= runpod
 RUNPOD_WORKDIR ?= /workspace/WeatherNext2-typhoon-Krovanh
-RESULTS_ROOT   ?= /Volumes/EW-NAS-Atoll/WeatherNext2-typhoon-Krovanh
+RESULTS_ROOT   ?= /Volumes/EW-NAS-Atoll/Projects/personal-dev/WeatherNext2-typhoon-Krovanh
 
 runpod-ssh: ## Open an SSH session to the pod
 	ssh $(RUNPOD_HOST)

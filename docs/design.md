@@ -185,11 +185,12 @@ push: data/interim/<case>/        -> pod:/workspace/.../data/interim/<case>/
 pull: pod:/workspace/.../outputs/<case>/ -> $RESULTS_ROOT/outputs/<case>/
 ```
 
-`RESULTS_ROOT` defaults to the NAS mount, `/Volumes/EW-NAS-Atoll/
-WeatherNext2-typhoon-Krovanh`. The working copy's `outputs/` is a symlink to
-it, so the analysis targets on the Mac read the pulled results in place with no
-second copy. `make link-results` creates that symlink, and nothing breaks when
-the NAS is unmounted beyond the analysis step failing to find its input.
+`RESULTS_ROOT` defaults to `/Volumes/EW-NAS-Atoll/Projects/personal-dev/
+WeatherNext2-typhoon-Krovanh` on the NAS. The working copy's `outputs/` is a
+symlink to it, so the analysis targets on the Mac read the pulled results in
+place with no second copy. `sync.sh pull` creates that symlink after a
+successful transfer, and nothing breaks when the NAS is unmounted beyond the
+analysis step failing to find its input.
 
 ## Storm-centre reference
 

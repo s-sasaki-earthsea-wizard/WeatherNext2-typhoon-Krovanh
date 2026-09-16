@@ -14,7 +14,7 @@ MODE="${1:?push|pull}"
 CASE="${2:?case id required}"
 HOST="${RUNPOD_HOST:-runpod}"
 REMOTE="${RUNPOD_WORKDIR:-/workspace/WeatherNext2-typhoon-Krovanh}"
-RESULTS_ROOT="${RESULTS_ROOT:-/Volumes/EW-NAS-Atoll/WeatherNext2-typhoon-Krovanh}"
+RESULTS_ROOT="${RESULTS_ROOT:-/Volumes/EW-NAS-Atoll/Projects/personal-dev/WeatherNext2-typhoon-Krovanh}"
 
 # --partial --append-verify so an interrupted multi-GB transfer resumes instead
 # of restarting; -z is deliberately absent because NetCDF and zarr are already
