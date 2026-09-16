@@ -18,8 +18,13 @@ decisions are settled (docs/requirements.md 9-13), ERA5 is downloaded and
 converted with a contract check (`make download-era5-all`, `make prepare-inputs`),
 and `run_inference` / `run_tracker` are real. Both were exercised end to end on
 the Mac against the Mini checkpoint, which is the same code path the pod runs.
-Next: create the pod and measure one member before committing the ensemble.
-Phase 2: inference + tracking for the two cases.
+Phase 2 done (2026-09-16) for the first two cases: 8 members each, tracked,
+verified on the NAS, pod destroyed. Measurements are in .claude-notes/
+session05.
+Phase 2b (2026-09-17): three more init times were added, 12 h before formation
+and 6 and 12 h after, so the five cases sit 6 h apart across genesis. ERA5 and
+inputs for all five are cached locally; the three new cases still need GPU
+time.
 Phase 3 started: both JMA releases load into one schema
 (`make fetch-besttrack`), the preliminary table now and the post-analysis CSV
 when it reaches storm 2624. Measured 2026-09-16 the CSV stops at 2605, about
@@ -60,6 +65,11 @@ to exist first.
   Configure it through `TRACKER_OVERRIDES` in `inference/tracker.py`, and never
   pass `initial_storms_df=None` -- see the upstream quirks table in
   docs/design.md.
+* Tracking is cyclogenesis-only for every case; no observed position is ever
+  handed to the tracker. Seeding was measured to change nothing past lead 0,
+  and it exempts a track from the 2.5-day minimum-duration filter that
+  cyclogenesis tracks are subject to. `observed_position` in the config is
+  reference data. See docs/requirements.md decision 12.
 
 ## Conventions specific to this repo
 

@@ -4,6 +4,19 @@ Re-runs the cyclone tracker over members already written by run_inference,
 for trying a different seed or a different tracker setting without paying for
 the GPU again.
 
+run_inference tracks in cyclogenesis mode and so does this by default. The two
+switches below exist to probe that choice rather than to produce results:
+
+    --seed-position   hand the tracker an observed centre at init time. On the
+                      formation case this reproduced the unseeded tracks
+                      exactly, which is why seeding was dropped.
+    --keep-short-tracks  stop discarding cyclogenesis tracks shorter than 2.5
+                      days. Use it when a member looks like a genesis miss, to
+                      tell a storm that never formed from one that formed and
+                      died young. Note that it also leaves the tracker's
+                      internal "cyclogenesis_" prefix on every track id, which
+                      the filtering pass would otherwise strip.
+
 It reads the stored regional crops and pads them back onto a global grid,
 because the tracker interpolates with longitude wraparound and rejects any
 grid that is not the full [0, 360). So it sees the storm only while the storm
@@ -14,7 +27,8 @@ than overwriting them.
 Usage:
     uv run python scripts/run_tracker.py --config configs/krovanh.yaml \\
         --case init-2026-08-31T18
-    uv run python scripts/run_tracker.py --case init-2026-08-31T18 --seed-position 22.6 131.9
+    uv run python scripts/run_tracker.py --case init-2026-09-01T00 --seed-position 22.6 131.9
+    uv run python scripts/run_tracker.py --case init-2026-08-31T12 --keep-short-tracks
 """
 
 from __future__ import annotations
@@ -50,12 +64,12 @@ def parse_args() -> argparse.Namespace:
         type=float,
         nargs=2,
         metavar=("LAT", "LON"),
-        help="override the case's seed; omit for cyclogenesis mode",
+        help="seed the tracker at this centre; the default seeds nothing",
     )
     parser.add_argument(
-        "--cyclogenesis-only",
+        "--keep-short-tracks",
         action="store_true",
-        help="ignore any seed position and let the tracker find the storm",
+        help="keep cyclogenesis tracks under 2.5 days (also keeps id prefixes)",
     )
     parser.add_argument(
         "--verbose", action="store_true", help="keep third-party INFO logs"
@@ -75,9 +89,7 @@ def main() -> None:
     if not stores:
         raise SystemExit(f"no member stores under {out_dir}; run run_inference first")
 
-    position = args.seed_position or case.seed_position
-    if args.cyclogenesis_only:
-        position = None
+    position = args.seed_position
     init_time = np.datetime64(case.init_time)
     initial_storms = (
         None
@@ -87,10 +99,13 @@ def main() -> None:
         )
     )
     logger.info(
-        "Case %s, init %s, seed %s", case.id, case.init_time, position or "none"
+        "Case %s, init %s, seed %s, short tracks %s",
+        case.id, case.init_time, position or "none",
+        "kept" if args.keep_short_tracks else "discarded under 2.5 d",
     )
 
-    tracker = build_tracker()
+    overrides = {"cyclogenesis_minimum_duration": None} if args.keep_short_tracks else {}
+    tracker = build_tracker(**overrides)
     all_tracks = []
     for store in stores:
         member = int(store.stem.split("-")[-1])

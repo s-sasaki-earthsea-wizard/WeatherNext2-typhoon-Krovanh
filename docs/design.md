@@ -144,15 +144,19 @@ sample are 94 per cent NaN and 99.6 per cent exact zero, which compresses about
 everywhere, measured at a compression ratio of 1.09, so storing it would cost
 2.6 GB per member and 21 GB per case. The crop already carries all 17 cyclone
 fields, so `run_tracker` pads it back onto a global grid with zeros instead --
-the tracker rejects any grid that is not the full [0, 360) in longitude. On the
-1 deg check that reproduced the global tracker's positions exactly, which holds
-as long as the storm stays well inside the region.
+the tracker rejects any grid that is not the full [0, 360) in longitude. That
+reproduces the global tracker exactly: 0.0 km and 0.00 hPa at every step of all
+8 members of `init-2026-09-01T00` at 0.25 deg, confirming the earlier 1 deg
+check. It holds as long as the storm stays inside the region, which is why the
+tracks `run_inference` writes from the real global field stay authoritative.
 
 **Network volume: 30 GB.** Worst case on the volume is the venv and cache
-(~6 GB), Python (0.1 GB), one checkpoint (0.74 GB), both cases' inputs
-(1.4 GB) and one case of output (2.6 GB): under 11 GB, with the rest as
+(~6 GB), Python (0.1 GB), one checkpoint (0.74 GB), all five cases' inputs
+(1.3 GB) and one case of output (2.6 GB): under 11 GB, with the rest as
 headroom for a second case in flight or an extra checkpoint. Results are
-pulled to the NAS after each case rather than accumulating.
+pulled to the NAS after each case rather than accumulating, so the five cases
+do not change the sizing. Inputs are 265-274 MB each rather than the 273 MB of
+the first pair, because the frames differ in how well they compress.
 
 Keep `UV_CACHE_DIR` on the same filesystem as the venv so uv hardlinks wheels
 instead of copying them; the CUDA wheels are the bulk of the 6 GB and paying
@@ -193,6 +197,41 @@ symlink to it, so the analysis targets on the Mac read the pulled results in
 place with no second copy. `sync.sh pull` creates that symlink after a
 successful transfer, and nothing breaks when the NAS is unmounted beyond the
 analysis step failing to find its input.
+
+## Tracking mode
+
+Every case is tracked in cyclogenesis mode: the tracker is given no observed
+position and finds the storm from the predicted probability field. The track
+belonging to Krovanh is then selected by position, not by id, because ids are
+not stable between members.
+
+The alternative was to seed the tracker at the analysed centre wherever the
+JMA table has one. Measured on 2026-09-17, that makes no difference. Tracking
+`init-2026-09-01T00` from the stored crop with and without the seed gives 0.0
+km and 0.00 hPa at every step of all 8 members, and cyclogenesis mode locates
+the storm unaided in 8 of 8, 36-110 km from the JMA centre against about
+1640 km to the next storm. All the seed ever added was its own lead-0 row.
+
+Two asymmetries make "no seed anywhere" better than "a harmless seed where one
+exists". The tracker deletes cyclogenesis tracks shorter than
+`cyclogenesis_minimum_duration` (2.5 days) and never deletes a seeded one: the
+filter matches on a temporary `cyclogenesis_` id prefix that is stripped
+afterwards, which is why stored ids are plain integers. Seeding some cases
+would therefore censor them differently from the rest, and short-lived storms
+are exactly what the weakening comparison is about. Separately, the five cases
+straddle formation to measure how skill varies with the initialization; a mode
+that switches on at formation would sit right on that boundary.
+
+Because that filter runs at INFO and `utils/logs.configure` holds third-party
+logs at WARNING, a deleted short track leaves no trace in `run.log`. Rather
+than plumb the log through, `run_tracker --keep-short-tracks` re-tracks with
+the filter off, which tells a genesis miss from a storm that formed and died
+young. It also leaves the `cyclogenesis_` prefix on every id, so its output is
+a diagnostic and not a drop-in replacement.
+
+A seeded track's lead-0 row is the observed position echoed back, with unit
+existence probability and no pressure or wind. Any error curve must drop lead
+0, or it scores a zero that came from the input.
 
 ## Storm-centre reference
 
