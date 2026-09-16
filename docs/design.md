@@ -210,3 +210,14 @@ file itself was re-published on 2026-09-09, so the post-analysis lags roughly
 labelled as preliminary, and re-run against the CSV when 2624 appears. Only the
 CSV carries a position before formation, which is why the pre-formation case
 cannot be seeded today.
+
+### The analysis is not the truth either
+
+ERA5 and the JMA analysis do not put the storm in the same place, and the gap
+is a floor on any forecast error worth reporting. At the 2026-09-01 00 UTC
+initialization the downloaded ERA5 has its mean sea level pressure minimum at
+22.75N 131.75E and 998.4 hPa, against the JMA 22.6N 131.9E and 996 hPa: about
+20 km apart and 2.4 hPa shallower, with a maximum 10 m wind of 15.8 m/s against
+the reported 18 m/s. Under-deepening tropical cyclones is a known property of
+0.25 deg reanalysis. Position errors of this order at short lead times say more
+about the initial state than about the model.
