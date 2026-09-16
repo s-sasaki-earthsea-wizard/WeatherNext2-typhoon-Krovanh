@@ -171,8 +171,10 @@ Everything under the volume mount so a stopped pod keeps state:
   weights/                        # checkpoint cache
 ```
 
-Pods are created per run, so the `runpod` alias in `~/.ssh/config` is rewritten
-each time a new pod comes up; `RUNPOD_HOST` in `.env` selects the alias.
+Pods are created per run, so the ssh alias in `~/.ssh/config` is rewritten each
+time a new pod comes up; `RUNPOD_HOST` selects which alias. The top-level
+Makefile reads `.env` before the `?=` defaults in `makefiles/*.mk`, so setting
+it there is enough and no target needs it on the command line.
 
 ## Moving data
 
