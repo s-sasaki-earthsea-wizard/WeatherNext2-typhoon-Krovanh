@@ -73,8 +73,9 @@ recurving away.
     well inside it. No global surface subset is kept: it is needed for the
     forecast, not for the question being asked.
 11. **Results storage**: outputs live on the NAS at
-    `/Volumes/EW-NAS-Atoll/WeatherNext2-typhoon-Krovanh/`, with `outputs/` in
-    the working copy symlinked to it so analysis on the Mac needs no copying.
+    `/Volumes/EW-NAS-Atoll/Projects/personal-dev/WeatherNext2-typhoon-Krovanh/`,
+    with `outputs/` in the working copy symlinked to it so analysis on the Mac
+    needs no copying.
 12. **Tracker seeding**: the formation case is seeded with the JMA position
     22.6N 131.9E. The pre-formation case cannot be seeded, because no
     published JMA position exists six hours before formation until the

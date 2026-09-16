@@ -171,8 +171,10 @@ Everything under the volume mount so a stopped pod keeps state:
   weights/                        # checkpoint cache
 ```
 
-Pods are created per run, so the `runpod` alias in `~/.ssh/config` is rewritten
-each time a new pod comes up; `RUNPOD_HOST` in `.env` selects the alias.
+Pods are created per run, so the ssh alias in `~/.ssh/config` is rewritten each
+time a new pod comes up; `RUNPOD_HOST` selects which alias. The top-level
+Makefile reads `.env` before the `?=` defaults in `makefiles/*.mk`, so setting
+it there is enough and no target needs it on the command line.
 
 ## Moving data
 
@@ -185,11 +187,12 @@ push: data/interim/<case>/        -> pod:/workspace/.../data/interim/<case>/
 pull: pod:/workspace/.../outputs/<case>/ -> $RESULTS_ROOT/outputs/<case>/
 ```
 
-`RESULTS_ROOT` defaults to the NAS mount, `/Volumes/EW-NAS-Atoll/
-WeatherNext2-typhoon-Krovanh`. The working copy's `outputs/` is a symlink to
-it, so the analysis targets on the Mac read the pulled results in place with no
-second copy. `make link-results` creates that symlink, and nothing breaks when
-the NAS is unmounted beyond the analysis step failing to find its input.
+`RESULTS_ROOT` defaults to `/Volumes/EW-NAS-Atoll/Projects/personal-dev/
+WeatherNext2-typhoon-Krovanh` on the NAS. The working copy's `outputs/` is a
+symlink to it, so the analysis targets on the Mac read the pulled results in
+place with no second copy. `sync.sh pull` creates that symlink after a
+successful transfer, and nothing breaks when the NAS is unmounted beyond the
+analysis step failing to find its input.
 
 ## Storm-centre reference
 
