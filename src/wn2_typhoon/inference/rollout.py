@@ -112,6 +112,51 @@ def stream_member(predictor_fn: Any, inputs: xr.Dataset,
     )
 
 
+# Upper bound on one uncompressed zarr chunk. Chosen so that the crop as
+# configured today lands in a single chunk per variable (the largest is 40 x 13
+# x 141 x 141 float32, about 41 MB) while a much wider `output.region` still
+# splits along time instead of producing chunks too big to read comfortably.
+MAX_CHUNK_BYTES = 64 * 1024 * 1024
+
+
+def chunking_for(array: xr.DataArray, max_bytes: int = MAX_CHUNK_BYTES) -> tuple[int, ...]:
+    """Choose a zarr chunk shape: whole fields, split along time if too large.
+
+    The default chunking xarray infers is far too fine for this crop. Left
+    alone it wrote ``(time 10, level 4, lat 71, lon 71)`` for arrays that are
+    only ``(40, 13, 141, 141)``, which is 624 files in 532 directories for
+    0.27 GB, an average of 458 KB per file. Every one of those files is paid
+    for three times: in MooseFS's directory accounting on the pod, in rsync's
+    per-file protocol overhead on the pull, and in SMB round trips on the write
+    to the NAS.
+
+    Measured on 2026-09-17 for one member, the two chunkings are the same size
+    on disk to within 0.1 per cent, and whole-field chunks cut the file count
+    from 624 to 71 and the Mac-to-NAS write from 210 s to 76 s, a factor of
+    2.8. Reading a time series at one point, a single field at one time, and
+    all 17 cyclone fields over all steps took under 0.1 s either way, so the
+    partial-read cost the fine chunking was buying does not exist at this size.
+
+    Args:
+        array: The variable to be written.
+        max_bytes: Largest uncompressed chunk to allow.
+
+    Returns:
+        A chunk shape, in the array's own dimension order.
+    """
+    shape = tuple(int(size) for size in array.shape)
+    whole = array.dtype.itemsize
+    for size in shape:
+        whole *= size
+    if whole <= max_bytes or "time" not in array.dims or not shape:
+        return shape
+
+    axis = array.dims.index("time")
+    per_step = max(whole // max(shape[axis], 1), 1)
+    steps = max(1, min(shape[axis], max_bytes // per_step))
+    return shape[:axis] + (steps,) + shape[axis + 1:]
+
+
 def save_zarr(forecast: xr.Dataset, path: Path) -> Path:
     """Write a forecast subset as compressed zarr.
 
@@ -123,6 +168,9 @@ def save_zarr(forecast: xr.Dataset, path: Path) -> Path:
     carries all 17 cyclone fields, so re-tracking pads it back to a global grid
     instead; see ``tracker.pad_to_global``.
 
+    Chunking is set explicitly rather than inferred; see :func:`chunking_for`
+    for the measurement behind that.
+
     Args:
         forecast: A subset from :func:`stream_member`.
         path: Destination store.
@@ -131,6 +179,9 @@ def save_zarr(forecast: xr.Dataset, path: Path) -> Path:
         ``path``.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
-    encoding = {name: {"compressors": "auto"} for name in forecast.data_vars}
+    encoding = {
+        name: {"compressors": "auto", "chunks": chunking_for(forecast[name])}
+        for name in forecast.data_vars
+    }
     forecast.to_zarr(path, mode="w", encoding=encoding, consolidated=True)
     return path

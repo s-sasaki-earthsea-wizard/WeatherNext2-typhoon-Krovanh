@@ -23,12 +23,12 @@ pod  run_inference: per member, rollout (global, streamed, never stored)
                  --sync.sh pull--> NAS:/Volumes/EW-NAS-Atoll/.../outputs/<case>/
 Mac  run_tracker  --> outputs/<case>/tracks-retracked.csv   (optional, no GPU)
      fetch_besttrack --> data/raw/jma/{T2624.pdf, table2026.csv}
-     evaluate        --> outputs/<case>/{errors.csv, figures/}
+     evaluate        --> outputs/<case>/analysis/{6 tables, 3 figures}
 ```
 
 Raw ERA5 frames are named after the timestamp they hold and shared by every
-case, because the two Krovanh cases have the 2026-08-31 18 UTC frame in
-common. `outputs/<case>` in the working copy is a symlink to the NAS, so the
+case: each case needs t-6h and t, and the five cases are 6 h apart, so
+consecutive cases share a frame and the five cost six frames rather than ten. `outputs/<case>` in the working copy is a symlink to the NAS, so the
 analysis steps read what the pull wrote without a second copy.
 
 ## Model input contract
@@ -149,6 +149,32 @@ reproduces the global tracker exactly: 0.0 km and 0.00 hPa at every step of all
 8 members of `init-2026-09-01T00` at 0.25 deg, confirming the earlier 1 deg
 check. It holds as long as the storm stays inside the region, which is why the
 tracks `run_inference` writes from the real global field stay authoritative.
+
+### Chunking of the stored crop
+
+`save_zarr` sets the chunk shape explicitly: one chunk per variable, splitting
+along time only if that would exceed 64 MB uncompressed. Left to xarray the
+crop came out as `(time 10, level 4, lat 71, lon 71)` for arrays that are only
+`(40, 13, 141, 141)`, which is 624 files in 532 directories for 0.27 GB, an
+average of 458 KB per file. That file count is paid three times: in MooseFS's
+directory accounting on the pod, in rsync's per-file overhead on the pull, and
+in SMB round trips on the write to the NAS.
+
+Measured on 2026-09-17 for one member, with the pod off:
+
+| | as written before | whole-field chunks |
+|---|---|---|
+| Files | 624 | 71 |
+| Directories | 532 | 138 |
+| Size on disk | 0.286 GB | 0.286 GB |
+| Mac to NAS, rsync | 210 s | 76 s |
+
+Same bytes, 2.8 times faster to write, and the partial reads the fine chunking
+was supposed to buy cost nothing either way: a time series at one point, one
+field at one time, and all 17 cyclone fields over all steps each took under
+0.1 s from both stores. The pod-to-Mac leg was not measured because no pod was
+running; the NAS figures are SMB over Tailscale, and the per-file overhead that
+dominates there is the same thing that dominates an rsync over the internet.
 
 **Network volume: 30 GB.** Worst case on the volume is the venv and cache
 (~6 GB), Python (0.1 GB), one checkpoint (0.74 GB), all five cases' inputs
