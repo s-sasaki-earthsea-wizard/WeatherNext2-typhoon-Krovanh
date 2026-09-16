@@ -20,10 +20,12 @@ and `run_inference` / `run_tracker` are real. Both were exercised end to end on
 the Mac against the Mini checkpoint, which is the same code path the pod runs.
 Next: create the pod and measure one member before committing the ensemble.
 Phase 2: inference + tracking for the two cases.
-Phase 3: comparison against the preliminary JMA table (T2624.pdf, available
-now, readable with `pdftotext -layout`), re-run against the post-analysis CSV
+Phase 3 started: both JMA releases load into one schema
+(`make fetch-besttrack`), the preliminary table now and the post-analysis CSV
 when it reaches storm 2624. Measured 2026-09-16 the CSV stops at 2605, about
-3.7 months behind, so expect 2624 around the turn of the year.
+3.7 months behind, so expect 2624 around the turn of the year. Remaining:
+`analysis/track_error.py` and `analysis/plot.py`, which need forecast output
+to exist first.
 
 ## Hard constraints
 

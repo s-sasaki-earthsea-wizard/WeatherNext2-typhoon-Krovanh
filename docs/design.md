@@ -200,9 +200,26 @@ different schedules.
 |---|---|---|
 | Available | now | around the turn of the year |
 | Coverage | formation to loss of typhoon status | whole life including the depression stage |
+| Rows for 2624 | 49 | none yet |
 | Cadence | 3-hourly JST | 6-hourly UTC |
-| Maximum wind | m/s | knots |
-| Parsing | `pdftotext -layout`, fixed columns | CSV, Shift_JIS |
+| Maximum wind | m/s | knots, 0 below the 34 kt threshold |
+| Grade code | absent | present |
+| Parsing | `pypdf` layout mode | CSV, Shift_JIS |
+
+`data/jma_besttrack.py` reads both into one schema -- time in UTC, lat, lon,
+`pressure_hpa`, `wind_kt`, `grade`, `remark`, `source` -- so the comparison can
+start on the preliminary values and be re-run against the CSV without any
+change downstream. `make fetch-besttrack` tries the CSV, explains what it found
+instead, and falls back; when 2624 appears the same command picks it up.
+
+Two details the schema has to reconcile. The CSV writes a maximum wind of 0
+below 34 kt, which is a threshold rather than a measurement, so it is read as
+missing. And the two files disagree on time resolution, which a merge would
+silently turn into an empty join, so both loaders normalise to `datetime64[ns]`.
+
+Wind radii are not parsed. The releases describe them differently -- storm- and
+gale-force radii by compass direction against 50 kt and 30 kt ellipse axes --
+so they would not survive the swap, and this project compares centres.
 
 Measured on 2026-09-16 the CSV stops at storm 2605 (19 May 2026) although the
 file itself was re-published on 2026-09-09, so the post-analysis lags roughly
