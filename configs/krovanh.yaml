@@ -61,7 +61,21 @@ forecast:
 # position exists at that time, because the preliminary table starts at
 # formation and the post-analysis CSV that carries the depression stage is
 # months away.
+# Five initialization times spanning 12 h either side of formation, so that
+# skill can be read against how much of the storm the analysis had already
+# seen. Consecutive cases share an ERA5 frame (each needs t-6h and t), so the
+# five cases cost six frames rather than ten.
+#
+# seed_position is the JMA preliminary position at init_time where one exists.
+# It is null before formation because the preliminary table starts at
+# formation and the post-analysis CSV that carries the depression stage is
+# months away. Whether the post-formation cases should in fact be seeded is
+# still open; see docs/requirements.md decision 12.
 cases:
+  - id: init-2026-08-31T12
+    init_time: "2026-08-31T12:00"   # 21 JST 31 Aug, twelve hours before formation
+    note: before formation; tracker runs in cyclogenesis mode
+    seed_position: null
   - id: init-2026-08-31T18
     init_time: "2026-08-31T18:00"   # 03 JST 1 Sep, six hours before formation
     note: before formation; tracker runs in cyclogenesis mode
@@ -70,6 +84,14 @@ cases:
     init_time: "2026-09-01T00:00"   # 09 JST 1 Sep, formation
     note: at formation; tracker seeded from the JMA position
     seed_position: [22.6, 131.9]
+  - id: init-2026-09-01T06
+    init_time: "2026-09-01T06:00"   # 15 JST 1 Sep, six hours after formation
+    note: after formation; tracker seeded from the JMA position
+    seed_position: [22.3, 131.4]
+  - id: init-2026-09-01T12
+    init_time: "2026-09-01T12:00"   # 21 JST 1 Sep, twelve hours after formation
+    note: after formation; tracker seeded from the JMA position
+    seed_position: [22.4, 131.7]
 
 output:
   # A global member is 17.1 GB (103 fields x 40 steps at 0.25 deg) and is never
