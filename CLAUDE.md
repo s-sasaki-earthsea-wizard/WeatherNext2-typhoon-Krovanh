@@ -25,12 +25,15 @@ Phase 2b (2026-09-17): three more init times were added, 12 h before formation
 and 6 and 12 h after, so the five cases sit 6 h apart across genesis. ERA5 and
 inputs for all five are cached locally; the three new cases still need GPU
 time.
-Phase 3 started: both JMA releases load into one schema
-(`make fetch-besttrack`), the preliminary table now and the post-analysis CSV
-when it reaches storm 2624. Measured 2026-09-16 the CSV stops at 2605, about
-3.7 months behind, so expect 2624 around the turn of the year. Remaining:
-`analysis/track_error.py` and `analysis/plot.py`, which need forecast output
-to exist first.
+Phase 3 done (2026-09-17) for the two cases that have output: both JMA
+releases load into one schema (`make fetch-besttrack`), and `make evaluate`
+writes the position, pressure, genesis and lifetime tables plus three figures
+to `outputs/<case>/analysis/`. The reference is the preliminary table;
+measured 2026-09-16 the post-analysis CSV stops at 2605, about 3.7 months
+behind, so expect 2624 around the turn of the year, at which point re-running
+`make fetch-besttrack && make evaluate-all` picks it up with no code change.
+Remaining: the across-case comparison (skill against initialization time),
+which needs the three new cases to be run.
 
 ## Hard constraints
 
