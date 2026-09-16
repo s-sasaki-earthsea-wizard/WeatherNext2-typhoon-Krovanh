@@ -20,7 +20,8 @@ Mac  CDS (ERA5T) --download_era5--> data/raw/era5/{pressure,single}_levels_<stam
 pod  run_inference: per member, rollout (global, streamed, never stored)
                                 -> track     -> outputs/<case>/tracks.csv
                                 -> crop      -> outputs/<case>/member-XX.zarr
-                 --sync.sh pull--> NAS:/Volumes/EW-NAS-Atoll/.../outputs/<case>/
+                 --sync.sh pull--> Mac:staging/<case>/   (pod stops here)
+                                -> NAS:/Volumes/EW-NAS-Atoll/.../outputs/<case>/
 Mac  run_tracker  --> outputs/<case>/tracks-retracked.csv   (optional, no GPU)
      fetch_besttrack --> data/raw/jma/{T2624.pdf, table2026.csv}
      evaluate        --> outputs/<case>/{errors.csv, figures/}
@@ -183,15 +184,39 @@ the pod is created with **ssh over an exposed TCP port** and the alias points
 at that host and port directly. `runpod/sync.sh` then uses plain rsync:
 
 ```
-push: data/interim/<case>/        -> pod:/workspace/.../data/interim/<case>/
-pull: pod:/workspace/.../outputs/<case>/ -> $RESULTS_ROOT/outputs/<case>/
+push:         data/interim/<case>/     -> pod:.../data/interim/<case>/
+pull-stage:   pod:.../outputs/<case>/  -> staging/<case>/
+pull-publish: staging/<case>/          -> $RESULTS_ROOT/outputs/<case>/
+pull:         both pull legs, in order
 ```
+
+The pull is two legs because `RESULTS_ROOT` is an SMB mount on the NAS reached
+over Tailscale, and one rsync from the pod to the NAS keeps the pod rented for
+the whole of that leg while it computes nothing. The first leg lands the case
+-- 2.3 GB in 5002 files, 458 KB on average, measured 2026-09-16 -- on the Mac's
+SSD, after which the pod can be stopped; the second leg runs between the Mac
+and the NAS with the pod already off. Whether the split is faster end to end is
+not measured (#5); what it changes for certain is how long the pod is billed.
+
+Staging is `staging/<case>/` in the working copy, git-ignored. It is there
+rather than under `/tmp` so that a `RESULTS_ROOT` which is itself local is on
+the same filesystem, keeping the second leg off the network entirely, and so
+that nothing outside this repository can delete a case that is waiting to be
+published. The second leg is rsync too, not `mv`: it resumes, `--append-verify`
+checks what it skips, and it merges into a destination that already holds an
+earlier pull. The staged copy is removed only once that rsync has returned
+success, so a second leg that fails -- share unmounted, Tailscale down --
+leaves the case on the SSD and `make runpod-pull-publish CASE=...` finishes it
+without a pod. The writability walk over `RESULTS_ROOT`'s ancestors therefore
+gates the second leg alone; an unmounted NAS must not block the leg that is
+costing money.
 
 `RESULTS_ROOT` defaults to `/Volumes/EW-NAS-Atoll/Projects/personal-dev/
 WeatherNext2-typhoon-Krovanh` on the NAS. The working copy's `outputs/` is a
 symlink to it, so the analysis targets on the Mac read the pulled results in
-place with no second copy. `sync.sh pull` creates that symlink after a
-successful transfer, and nothing breaks when the NAS is unmounted beyond the
+place with no second copy. The second leg creates that symlink once it
+succeeds, always pointing at `RESULTS_ROOT` and never at the staging copy,
+which is gone by then. Nothing breaks when the NAS is unmounted beyond the
 analysis step failing to find its input.
 
 ## Storm-centre reference
