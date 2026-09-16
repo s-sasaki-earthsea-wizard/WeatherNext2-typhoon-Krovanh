@@ -32,13 +32,18 @@ class Era5Source:
 
     Attributes:
         dataset: CDS dataset identifier.
-        variable: CDS variable name, which is not always the model's name.
+        variable: CDS variable name used in the request, which is not always
+            the model's name.
+        short_name: Name the variable carries inside the NetCDF the CDS
+            returns. It comes from the underlying GRIB and matches neither of
+            the other two, so the conversion needs it spelled out.
         static: True for time-invariant fields, downloaded once for a single
-            arbitrary timestamp and broadcast over the input frames.
+            arbitrary timestamp rather than per input frame.
     """
 
     dataset: str
     variable: str
+    short_name: str
     static: bool = False
 
 
@@ -46,37 +51,46 @@ class Era5Source:
 # three checkpoints bundled with weathernext 0.3.0.
 ERA5_SOURCES: dict[str, Era5Source] = {
     # Pressure levels.
-    "temperature": Era5Source(CDS_PRESSURE_LEVELS, "temperature"),
-    "geopotential": Era5Source(CDS_PRESSURE_LEVELS, "geopotential"),
-    "u_component_of_wind": Era5Source(CDS_PRESSURE_LEVELS, "u_component_of_wind"),
-    "v_component_of_wind": Era5Source(CDS_PRESSURE_LEVELS, "v_component_of_wind"),
-    "vertical_velocity": Era5Source(CDS_PRESSURE_LEVELS, "vertical_velocity"),
-    "specific_humidity": Era5Source(CDS_PRESSURE_LEVELS, "specific_humidity"),
+    "temperature": Era5Source(CDS_PRESSURE_LEVELS, "temperature", "t"),
+    "geopotential": Era5Source(CDS_PRESSURE_LEVELS, "geopotential", "z"),
+    "u_component_of_wind": Era5Source(
+        CDS_PRESSURE_LEVELS, "u_component_of_wind", "u"
+    ),
+    "v_component_of_wind": Era5Source(
+        CDS_PRESSURE_LEVELS, "v_component_of_wind", "v"
+    ),
+    "vertical_velocity": Era5Source(CDS_PRESSURE_LEVELS, "vertical_velocity", "w"),
+    "specific_humidity": Era5Source(CDS_PRESSURE_LEVELS, "specific_humidity", "q"),
     # Single level, time varying.
-    "2m_temperature": Era5Source(CDS_SINGLE_LEVELS, "2m_temperature"),
-    "mean_sea_level_pressure": Era5Source(CDS_SINGLE_LEVELS, "mean_sea_level_pressure"),
+    "2m_temperature": Era5Source(CDS_SINGLE_LEVELS, "2m_temperature", "t2m"),
+    "mean_sea_level_pressure": Era5Source(
+        CDS_SINGLE_LEVELS, "mean_sea_level_pressure", "msl"
+    ),
     "10m_u_component_of_wind": Era5Source(
-        CDS_SINGLE_LEVELS, "10m_u_component_of_wind"
+        CDS_SINGLE_LEVELS, "10m_u_component_of_wind", "u10"
     ),
     "10m_v_component_of_wind": Era5Source(
-        CDS_SINGLE_LEVELS, "10m_v_component_of_wind"
+        CDS_SINGLE_LEVELS, "10m_v_component_of_wind", "v10"
     ),
     "100m_u_component_of_wind": Era5Source(
-        CDS_SINGLE_LEVELS, "100m_u_component_of_wind"
+        CDS_SINGLE_LEVELS, "100m_u_component_of_wind", "u100"
     ),
     "100m_v_component_of_wind": Era5Source(
-        CDS_SINGLE_LEVELS, "100m_v_component_of_wind"
+        CDS_SINGLE_LEVELS, "100m_v_component_of_wind", "v100"
     ),
     # NaN over land in ERA5; the model was trained with that convention.
     "sea_surface_temperature": Era5Source(
-        CDS_SINGLE_LEVELS, "sea_surface_temperature"
+        CDS_SINGLE_LEVELS, "sea_surface_temperature", "sst"
     ),
     # Static. Surface geopotential is plain "geopotential" in the single-level
-    # dataset, i.e. a different field from the pressure-level variable above.
+    # dataset, i.e. a different field from the pressure-level variable above,
+    # and it arrives under the same short name. They never share a file.
     "geopotential_at_surface": Era5Source(
-        CDS_SINGLE_LEVELS, "geopotential", static=True
+        CDS_SINGLE_LEVELS, "geopotential", "z", static=True
     ),
-    "land_sea_mask": Era5Source(CDS_SINGLE_LEVELS, "land_sea_mask", static=True),
+    "land_sea_mask": Era5Source(
+        CDS_SINGLE_LEVELS, "land_sea_mask", "lsm", static=True
+    ),
 }
 
 
