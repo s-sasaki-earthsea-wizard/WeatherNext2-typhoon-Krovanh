@@ -160,12 +160,22 @@ def select_storm(
 
     Returns:
         ``(selected, selections)``. ``selected`` holds the chosen rows for
-        every member that matched, in time order. ``selections`` records the
-        decision for every member including the misses, so a case can report
-        how many members produced the storm at all.
+        every member that matched, in time order, starting after ``init_time``.
+        ``selections`` records the decision for every member including the
+        misses, so a case can report how many members produced the storm at
+        all.
+
+    Rows at or before ``init_time`` are dropped from ``selected``. The model
+    predicts nothing there, and output written while the tracker was still
+    seeded carries the observed position at lead 0; kept, that row would put
+    the seeded case's genesis one step ahead of every unseeded one and make
+    its durations a step longer, which is a difference in bookkeeping, not
+    in the forecast. Dropping it here makes every report downstream read the
+    same whichever way a case was tracked.
     """
     tracks = tracks.copy()
     tracks[TRACK_TIME] = pd.to_datetime(tracks[TRACK_TIME])
+    start = pd.Timestamp(str(init_time))
     selections, chosen = [], []
     for member, member_tracks in tracks.groupby("member", sort=True):
         selection = select_member_track(
@@ -174,7 +184,8 @@ def select_storm(
         selections.append(selection)
         if selection.found:
             rows = member_tracks.loc[
-                member_tracks["track_id"].astype(str) == selection.track_id
+                (member_tracks["track_id"].astype(str) == selection.track_id)
+                & (member_tracks[TRACK_TIME] > start)
             ]
             chosen.append(rows.sort_values(TRACK_TIME))
     selected = (
