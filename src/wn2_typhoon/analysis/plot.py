@@ -14,6 +14,7 @@ the figure by default so it cannot be forgotten. See docs/license-notes.md.
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 import matplotlib
@@ -29,29 +30,182 @@ from wn2_typhoon.utils.geo import mean_position
 MEMBER_STYLE = {"color": "#7f7f7f", "linewidth": 0.9, "alpha": 0.75, "zorder": 2}
 ENSEMBLE_STYLE = {"color": "#d62728", "linewidth": 2.2, "zorder": 4}
 OBSERVED_STYLE = {"color": "#111111", "linewidth": 2.2, "zorder": 5}
+# The grey members fade into a tile map's own colours; darken them there.
+MEMBER_STYLE_ON_TILES = {**MEMBER_STYLE, "color": "#4d4d4d", "alpha": 0.85}
+
+# Map backgrounds. Natural Earth needs no network once cartopy has cached its
+# shapefiles and is the cleaner rendering for a paper figure. The OpenStreetMap
+# tiles put named islands and coastlines under the tracks, which helps a reader
+# who does not know the Nansei chain by its shape; they need the network on the
+# first draw and are cached under data/ after that. CARTO's light tiles were
+# tried first and are key-gated now: without an API key every tile comes back
+# watermarked "API KEY REQUIRED".
+BASEMAPS = ("natural-earth", "osm")
+BASEMAP_CREDIT = {
+    "natural-earth": "",
+    "osm": "basemap (c) OpenStreetMap contributors",
+}
+# OSM's tile usage policy asks for a user agent that identifies the
+# application; cartopy's default, "CartoPy/<version>", is not one.
+TILE_USER_AGENT = (
+    "wn2-typhoon-krovanh/0.1 "
+    "(+https://github.com/s-sasaki-earthsea-wizard/WeatherNext2-typhoon-Krovanh)"
+)
+# cartopy's own default is a directory under the system temp dir, so left
+# alone every run would download the tiles again.
+TILE_CACHE_DIR = Path("data/cache/tiles")
+TILE_ZOOM_RANGE = (3, 10)
+
+# One hue, light to dark in initialization order, for figures that put the
+# cases side by side. Validated as an ordinal ramp: lightness monotone, every
+# step at least 0.06 apart, light end 2.4:1 against white. The markers are the
+# second encoding, so identity never rests on colour alone.
+CASE_RAMP = ("#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b")
+CASE_MARKERS = ("o", "s", "^", "D", "v")
+INK = {"primary": "#0b0b0b", "secondary": "#52514e", "muted": "#898781"}
 
 
-def credit_line(source: str) -> str:
+def _check_basemap(basemap: str) -> str:
+    """Return ``basemap`` if it is a known background, else raise.
+
+    Raises:
+        ValueError: If ``basemap`` is not in :data:`BASEMAPS`.
+    """
+    if basemap not in BASEMAPS:
+        raise ValueError(f"basemap must be one of {BASEMAPS}, got {basemap!r}")
+    return basemap
+
+
+def credit_line(source: str, basemap: str = "natural-earth") -> str:
     """Return the attribution required on a published figure.
 
     Args:
         source: Value of the reference track's ``source`` column, either
             "preliminary" or "post-analysis".
+        basemap: Map background of the figure, one of :data:`BASEMAPS`. The
+            OpenStreetMap tiles carry their own attribution requirement.
 
     Returns:
-        A one-line credit naming the model, the initial conditions and the
-        reference track, with the reference's release stated so a preliminary
-        figure is never mistaken for a final one.
+        A one-line credit naming the model, the initial conditions, the
+        reference track and, when tiles were drawn, their provider. The
+        reference's release is stated so a preliminary figure is never
+        mistaken for a final one.
     """
     release = {
         "preliminary": "JMA preliminary position table",
         "post-analysis": "JMA post-analysis position table",
     }.get(source, f"JMA position table ({source})")
-    return (
+    line = (
         "WeatherNext 2 (Google DeepMind, CC BY 4.0) "
         "| initial conditions ERA5 (Copernicus) "
         f"| reference {release}"
     )
+    extra = BASEMAP_CREDIT[_check_basemap(basemap)]
+    return f"{line} | {extra}" if extra else line
+
+
+def tile_zoom(extent, width_px: float) -> int:
+    """Pick the web-map zoom that gives about one tile pixel per figure pixel.
+
+    A tile is 256 px wide and at zoom ``z`` the world is ``2**z`` tiles across,
+    so the zoom that matches the figure is the smallest one whose tiles are at
+    least as fine as the pixels they are drawn on. One level coarser leaves the
+    map soft; one finer downloads four times the tiles for nothing.
+
+    Args:
+        extent: ``[lon_min, lon_max, lat_min, lat_max]`` in degrees.
+        width_px: Width of the map axes in pixels.
+
+    Returns:
+        The zoom level, clamped to :data:`TILE_ZOOM_RANGE`.
+    """
+    span = float(extent[1]) - float(extent[0])
+    zoom = math.ceil(math.log2(360.0 / span * width_px / 256.0))
+    low, high = TILE_ZOOM_RANGE
+    return int(min(max(zoom, low), high))
+
+
+def track_extent(
+    forecast_tracks: pd.DataFrame, best_track: pd.DataFrame, margin_deg: float
+) -> list[float]:
+    """Bounding box of the drawn tracks, padded.
+
+    Args:
+        forecast_tracks: Forecast tracks with ``lat`` and ``lon`` columns.
+        best_track: Reference track with ``lat`` and ``lon`` columns.
+        margin_deg: Padding on every side, in degrees.
+
+    Returns:
+        ``[lon_min, lon_max, lat_min, lat_max]``.
+    """
+    lats = np.concatenate([forecast_tracks["lat"].to_numpy(), best_track["lat"].to_numpy()])
+    lons = np.concatenate([forecast_tracks["lon"].to_numpy(), best_track["lon"].to_numpy()])
+    return [
+        float(lons.min()) - margin_deg,
+        float(lons.max()) + margin_deg,
+        float(lats.min()) - margin_deg,
+        float(lats.max()) + margin_deg,
+    ]
+
+
+def map_axes(
+    fig,
+    subplot: tuple[int, int, int],
+    extent,
+    basemap: str = "natural-earth",
+    width_px: float = 1360.0,
+    label_sides: tuple[str, ...] = ("left", "bottom"),
+):
+    """Add a map axes to ``fig`` with the chosen background drawn.
+
+    Everything plotted onto the returned axes must pass
+    ``transform=ccrs.PlateCarree()``: the tile background lives in Web
+    Mercator and the Natural Earth one in plate carree, and the transform is
+    what lets the same plotting code serve both.
+
+    Args:
+        fig: Figure to add the axes to.
+        subplot: ``(rows, columns, index)`` as for ``fig.add_subplot``.
+        extent: ``[lon_min, lon_max, lat_min, lat_max]`` in degrees.
+        basemap: One of :data:`BASEMAPS`.
+        width_px: Width the axes will be rendered at, used to choose the tile
+            zoom. Ignored for Natural Earth.
+        label_sides: Which of "left" and "bottom" get gridline labels, so a
+            grid of small maps can label only its outer edge.
+
+    Returns:
+        A cartopy ``GeoAxes``.
+    """
+    import cartopy.crs as ccrs
+    import cartopy.feature as cfeature
+
+    if _check_basemap(basemap) == "osm":
+        from cartopy.io.img_tiles import OSM
+
+        tiler = OSM(cache=str(TILE_CACHE_DIR), user_agent=TILE_USER_AGENT)
+        axes = fig.add_subplot(*subplot, projection=tiler.crs)
+        axes.set_extent(extent, crs=ccrs.PlateCarree())
+        axes.add_image(tiler, tile_zoom(extent, width_px), interpolation="spline36")
+        grid_colour = "#666666"
+    else:
+        axes = fig.add_subplot(*subplot, projection=ccrs.PlateCarree())
+        axes.set_extent(extent, crs=ccrs.PlateCarree())
+        axes.add_feature(cfeature.LAND.with_scale("50m"), facecolor="#f2f0eb", zorder=0)
+        axes.add_feature(cfeature.OCEAN.with_scale("50m"), facecolor="#eaf1f7", zorder=0)
+        axes.add_feature(
+            cfeature.COASTLINE.with_scale("50m"),
+            linewidth=0.6, edgecolor="#888888", zorder=1,
+        )
+        grid_colour = "#cccccc"
+
+    gridlines = axes.gridlines(
+        draw_labels=True, linewidth=0.3, color=grid_colour, alpha=0.6,
+        xlabel_style={"size": 8}, ylabel_style={"size": 8},
+    )
+    gridlines.top_labels = gridlines.right_labels = False
+    gridlines.left_labels = "left" in label_sides
+    gridlines.bottom_labels = "bottom" in label_sides
+    return axes
 
 
 def _finish(fig, out_path: Path, credit: str | None) -> Path:
@@ -114,6 +268,7 @@ def plot_tracks(
     title: str | None = None,
     margin_deg: float = 3.0,
     credit: str | None = None,
+    basemap: str = "natural-earth",
 ) -> Path:
     """Draw the ensemble tracks over the reference track on a map.
 
@@ -124,36 +279,22 @@ def plot_tracks(
         title: Figure title.
         margin_deg: Padding around the drawn tracks, in degrees.
         credit: Attribution line; built from the reference's ``source`` column
-            when omitted. Pass an empty string to suppress it.
+            and ``basemap`` when omitted. Pass an empty string to suppress it.
+        basemap: Map background, one of :data:`BASEMAPS`.
 
     Returns:
         ``out_path``.
     """
     import cartopy.crs as ccrs
-    import cartopy.feature as cfeature
 
     if credit is None:
-        credit = credit_line(str(best_track["source"].iloc[0]))
+        credit = credit_line(str(best_track["source"].iloc[0]), basemap)
 
-    lats = np.concatenate([forecast_tracks["lat"].to_numpy(), best_track["lat"].to_numpy()])
-    lons = np.concatenate([forecast_tracks["lon"].to_numpy(), best_track["lon"].to_numpy()])
-    extent = [
-        float(lons.min()) - margin_deg,
-        float(lons.max()) + margin_deg,
-        float(lats.min()) - margin_deg,
-        float(lats.max()) + margin_deg,
-    ]
-
-    fig = plt.figure(figsize=(8.5, 7.5))
-    axes = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
-    axes.set_extent(extent, crs=ccrs.PlateCarree())
-    axes.add_feature(cfeature.LAND.with_scale("50m"), facecolor="#f2f0eb", zorder=0)
-    axes.add_feature(cfeature.OCEAN.with_scale("50m"), facecolor="#eaf1f7", zorder=0)
-    axes.add_feature(
-        cfeature.COASTLINE.with_scale("50m"), linewidth=0.6, edgecolor="#888888", zorder=1
-    )
-    gridlines = axes.gridlines(draw_labels=True, linewidth=0.3, color="#cccccc")
-    gridlines.top_labels = gridlines.right_labels = False
+    extent = track_extent(forecast_tracks, best_track, margin_deg)
+    figsize, dpi = (8.5, 7.5), 160
+    fig = plt.figure(figsize=figsize)
+    axes = map_axes(fig, (1, 1, 1), extent, basemap, width_px=figsize[0] * dpi)
+    member_style = MEMBER_STYLE_ON_TILES if basemap == "osm" else MEMBER_STYLE
 
     for member, group in forecast_tracks.groupby("member", sort=True):
         group = group.sort_values("valid_time")
@@ -161,7 +302,7 @@ def plot_tracks(
             group["lon"], group["lat"],
             transform=ccrs.PlateCarree(),
             label="ensemble members" if member == forecast_tracks["member"].min() else None,
-            **MEMBER_STYLE,
+            **member_style,
         )
 
     # Only while every member is still present. Past that the mean is taken

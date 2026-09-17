@@ -12,6 +12,7 @@ weights and input data. This is not legal advice.
 | "All other materials" in that repo, which covers the model weights | CC BY 4.0 | README of google-deepmind/weathernext |
 | ERA5 / ERA5T | Copernicus C3S licence (free use with attribution) | CDS |
 | JMA typhoon position table | JMA website terms of use (attribution required) | data.jma.go.jp |
+| OpenStreetMap tiles (optional map background) | ODbL for the data, tile usage policy for the server | tile.openstreetmap.org |
 
 ## Why Apache-2.0 is safe here
 
@@ -32,6 +33,10 @@ code we call into.
   nor ECMWF is responsible for any use made of it.
 * **JMA attribution.** Credit the Japan Meteorological Agency for best-track
   data.
+* **OpenStreetMap attribution.** A figure drawn with `--basemap osm` must show
+  "(c) OpenStreetMap contributors"; `analysis.plot.credit_line` adds it. The
+  tile usage policy also asks for an identifying user agent and no bulk
+  downloading, which the project user agent and the cache under `data/` cover.
 * **NOTICE must be kept current.** If a different checkpoint is used, add it
   to the checkpoint list in NOTICE.
 
