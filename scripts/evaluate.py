@@ -6,7 +6,8 @@ the tables and figures. Needs no GPU and no forecast fields: it reads
 
 Results are written beside the tracks, under ``outputs/<case>/analysis/``,
 which is on the NAS through the symlink. The NAS is not always mounted, and
-that alone is enough to make this fail.
+that alone is enough to make this fail. Besides the tables and figures, the
+selected tracks go out as two GeoJSON files (lines and points) for QGIS.
 
 The track map draws Natural Earth coastlines by default; ``--basemap osm``
 puts OpenStreetMap tiles under the tracks instead, which needs the network on
@@ -31,6 +32,7 @@ from pathlib import Path
 import pandas as pd
 import xarray as xr
 
+from wn2_typhoon.analysis.export import write_tracks
 from wn2_typhoon.analysis.plot import (
     BASEMAPS,
     credit_line,
@@ -205,7 +207,10 @@ def evaluate_case(case, cfg: dict, args: argparse.Namespace) -> None:
         ("genesis", genesis), ("lifetime", lifetime), ("track", selected),
     ]:
         table.to_csv(out_dir / f"{name}.csv", index=False)
-    logger.info("wrote 6 tables to %s", out_dir)
+    lines_path, points_path = write_tracks(
+        [(case.id, case.init_time, selected)], best_track, out_dir
+    )
+    logger.info("wrote 6 tables and %s, %s to %s", lines_path.name, points_path.name, out_dir)
 
     if not summary.empty:
         for lead in (24, 48, 72, 120):
