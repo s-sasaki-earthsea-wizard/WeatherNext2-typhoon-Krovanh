@@ -24,7 +24,8 @@ pod  run_inference: per member, rollout (global, streamed, never stored)
                                 -> NAS:/Volumes/EW-NAS-Atoll/.../outputs/<case>/
 Mac  run_tracker  --> outputs/<case>/tracks-retracked.csv   (optional, no GPU)
      fetch_besttrack --> data/raw/jma/{T2624.pdf, table2026.csv}
-     evaluate        --> outputs/<case>/analysis/{6 tables, 3 figures}
+     evaluate        --> outputs/<case>/analysis/{6 tables, 2 GeoJSON, 3 figures}
+     compare_cases   --> outputs/comparison/{9 tables, 2 GeoJSON, 5 figures}
 ```
 
 Raw ERA5 frames are named after the timestamp they hold and shared by every
@@ -331,3 +332,95 @@ initialization the downloaded ERA5 has its mean sea level pressure minimum at
 the reported 18 m/s. Under-deepening tropical cyclones is a known property of
 0.25 deg reanalysis. Position errors of this order at short lead times say more
 about the initial state than about the model.
+
+## Across-case comparison
+
+`scripts/compare_cases.py` reads the per-case tables and puts the cases side
+by side. It never touches the tracker output or the fields, so it reruns in
+seconds after any change to `evaluate`. Results measured on 2026-09-18 against
+the preliminary JMA table are summarised at the end.
+
+### Two views of the same errors
+
+Indexed by lead time, the curves compare the model with itself: a 48 h
+forecast from one initialization against a 48 h forecast from another. Indexed
+by valid time, they compare what was known about the same moment of the storm,
+which is how a forecaster meets them. Both are written, because a case can
+look better in one view and worse in the other, and the valid-time view is
+where the observed milestones (formation, minimum pressure, weakening) can be
+drawn as vertical lines.
+
+### The ensemble mean is not a track
+
+On every case the members split into a group that recurves over Kyushu and
+Honshu and a group that drifts toward the continent, and the mean of the two
+lies between them, near the observed loop, along a path no member took. On
+the formation case the error of the ensemble mean falls to 50 km at 120 h
+while the mean member error is 170 km; that is cancellation, not a member
+that got the loop right. The across-case figures therefore draw no ensemble
+mean at all, and every ensemble-mean error in the tables sits next to the
+number of members within 200 km of the observed centre. The radius is about
+the size of the short-lead errors, so the count separates members that are
+still with the storm from members that have left it.
+
+The same worry is answered from the other end by `member_fate`: each member's
+track end is classed against the observed track's bounding box padded by
+1.5 degrees. A member that ends inside "stayed", as the storm did; one that
+ends outside is classed by the side it left through, north first. The box
+describes this storm and nothing else, which is why the margin is a parameter
+reported with the table.
+
+### Spread against skill
+
+`spread_skill` uses only leads at which every member is still present. Once
+tracks start ending, both the spread and the mean are taken over a shrinking
+sample and the relation between them says less. The scatter is expected to
+sit above the diagonal: every member starts from the same ERA5 state, since
+FGN perturbs the model and not the initial conditions, so the spread has to
+grow from zero.
+
+### Findings (2026-09-18, five cases, preliminary reference)
+
+* No monotonic "later initialization is better" signal. For the first two
+  days every case sits at 70-120 km, which is the size of the ERA5
+  initial-position error (23-110 km), and the five are not distinguishable.
+  All of them jump to 400-670 km on 2026-09-05 00Z, the storm's loop and
+  stall west of Amami, and overlap afterwards. With 8 members and one storm
+  the effect of the initialization is inside the analysis noise.
+* Genesis: 7 of 8 members of the -12 h case already report the vortex at
+  lead 6 h (08-31 18Z). The floor was hit again, so the timing error is a
+  bound ("6 h early or more"), and a case 24 h ahead would be needed to
+  measure it. Note also that the preliminary table's "formation" is the
+  upgrade to tropical storm while the tracker detects any closed vortex, so
+  until the post-analysis CSV brings the depression rows the comparison is
+  detection against upgrade.
+* Lifetime: most members keep the cyclone 60-102 h past the observed
+  weakening and recurve it into the westerlies (6 of 8 "north" in four of the
+  five cases, 8 of 8 in the +12 h case); several deepen it to 952-975 hPa
+  against the observed 985. Keeping Krovanh too strong for too long is
+  consistent across the initializations.
+* Spread: the mean error is 1.6-2.6 times the spread, under-dispersive as
+  expected from unperturbed initial conditions; the correlation of spread
+  with the ensemble-mean error is 0.94 on the two pre-formation cases and
+  0.2-0.8 on the others.
+
+### Map background
+
+The track maps default to Natural Earth coastlines, which draw offline once
+cartopy has cached the shapefiles and are the cleaner rendering in print.
+`--basemap osm` draws OpenStreetMap's standard tiles through cartopy's
+`img_tiles` instead, for readers who do not know the Nansei chain by its
+shape. The zoom is derived from the extent and the figure's pixel width, the
+request carries the project's user agent as the tile usage policy asks, the
+cache lives under `data/cache/tiles/` (cartopy's own default is a temp dir),
+and the credit line gains the OSM attribution. CARTO's light tiles were tried
+first and come back watermarked "API KEY REQUIRED" without a key.
+
+### GeoJSON for a GIS
+
+Both `evaluate` and `compare_cases` write `tracks-lines.geojson` (one
+LineString per member, plus the reference) and `tracks-points.geojson` (one
+Point per 6 h position with lead time, pressure and wind). Lines and points
+are separate files because QGIS splits a mixed-geometry file into sub-layers
+and asks which to load. Longitudes are wrapped to [-180, 180] and missing
+values written as `null`, since a bare `NaN` is not JSON.
