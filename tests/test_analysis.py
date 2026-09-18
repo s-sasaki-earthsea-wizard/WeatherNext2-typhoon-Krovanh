@@ -139,6 +139,34 @@ def test_selection_ignores_lead_zero() -> None:
     assert selections[0].anchor_time == pd.Timestamp("2026-09-01 06:00")
 
 
+def test_selected_tracks_start_after_init_time() -> None:
+    """A lead-0 row must not leak into the genesis or duration reports.
+
+    Output written while the tracker was still seeded carries the observed
+    position at lead 0. Kept, that row alone would put the seeded case's
+    genesis a step ahead of the unseeded cases and lengthen its durations.
+    """
+    best = _best_track(
+        ["2026-09-01 00:00", "2026-09-01 06:00", "2026-09-01 12:00"],
+        [22.6, 22.3, 22.4],
+        [131.9, 131.4, 131.7],
+    )
+    tracks = _tracks(
+        [
+            (0, "seed", "2026-09-01 00:00", 22.6, 131.9, np.nan),
+            (0, "seed", "2026-09-01 06:00", 22.3, 131.4, 990.0),
+            (0, "seed", "2026-09-01 12:00", 22.4, 131.7, 985.0),
+        ]
+    )
+    selected, selections = select_storm(tracks, best, INIT)
+    assert selections[0].track_id == "seed"
+    assert selected["valid_time"].min() == pd.Timestamp("2026-09-01 06:00")
+    genesis = genesis_report(selected, selections, "2026-09-01T00:00", INIT, 6)
+    assert genesis["model_genesis"].iloc[0] == pd.Timestamp("2026-09-01 06:00")
+    lifetime = lifetime_report(selected, selections, "2026-09-01T12:00")
+    assert lifetime["duration_hours"].iloc[0] == pytest.approx(6.0)
+
+
 def test_selection_records_a_miss_rather_than_taking_the_nearest() -> None:
     best = _best_track(["2026-09-01 06:00"], [22.3], [131.4])
     tracks = _tracks([(0, 0, "2026-09-01 06:00", 40.0, 160.0, 1000.0)])

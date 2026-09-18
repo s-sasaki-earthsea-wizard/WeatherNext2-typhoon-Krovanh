@@ -15,10 +15,16 @@ table (best track).
 - [x] ERA5 download and WeatherNext 2 input construction (Mac)
 - [x] Ensemble rollout and storm-centre tracking, run end to end on the Mac
       against the 1 deg checkpoint
-- [ ] Inference on RunPod H100 (uv virtual environment, no Docker)
+- [x] Inference on RunPod H100 (uv virtual environment, no Docker): five
+      initialization times, 8 members each
 - [x] JMA reference track, preliminary and post-analysis read into one schema
       (`make fetch-besttrack`)
-- [ ] Comparison of forecast tracks against it
+- [x] Comparison of forecast tracks against it, per case (`make evaluate-all`)
+- [x] Comparison across initialization times, spread against skill, genesis
+      and lifetime (`make compare-cases`)
+- [x] Track maps on OpenStreetMap tiles (`BASEMAP=osm`) and GeoJSON export
+      of every track for QGIS
+- [ ] Re-run against the JMA post-analysis table when storm 2624 appears in it
 
 ## Experiment summary
 
@@ -26,7 +32,7 @@ table (best track).
 |---|---|
 | Model | WeatherNext2_<2025, checkpoint model1 (0.25 deg, 13 levels) |
 | Initial conditions | ERA5 (ERA5T) from the CDS API, two frames (t-6h, t) |
-| Initialization times | 2026-08-31 18 UTC (before formation), 2026-09-01 00 UTC (formation) |
+| Initialization times | five, 6 h apart: 2026-08-31 12 and 18 UTC (before formation), 2026-09-01 00 UTC (formation), 06 and 12 UTC (after) |
 | Lead time | 240 h (40 steps of 6 h) |
 | Ensemble | 8 members |
 | Compute | RunPod H100 80 GB, 30 GB volume, results pulled to the NAS |
@@ -125,6 +131,34 @@ see `.env.example`) rather than accumulating on the billed volume.
 `runpod/sync.sh pull` symlinks `outputs/<case>` at the pulled directory, so the
 analysis targets run in the working copy without a second copy of the data.
 
+### Comparing the forecasts with the reference
+
+```bash
+make evaluate CASE=init-2026-09-01T00   # one case
+make evaluate-all                       # every case with tracker output
+make compare-cases                      # the cases side by side
+make evaluate-all BASEMAP=osm           # track maps on OpenStreetMap tiles
+```
+
+`evaluate` reduces a case's tracker output to one track per member (the
+tracker reports every storm on the globe), scores it against the JMA track,
+and writes six tables, three figures and two GeoJSON files to
+`outputs/<case>/analysis/`. `compare-cases` reads those tables for every
+evaluated case and writes `outputs/comparison/`: error against lead time and
+against valid time, spread against skill, genesis timing, track end and
+minimum pressure per member, and where each member's track ended, plus small
+multiples of the tracks and one GeoJSON pair holding every case.
+
+The GeoJSON files (`tracks-lines.geojson`, `tracks-points.geojson`) drop
+straight onto a QGIS map: one line per member plus the reference, and one
+point per 6 h position with its lead time, pressure and wind. Lines and points
+are separate files because QGIS splits a mixed-geometry file into sub-layers
+and asks which to load.
+
+`BASEMAP=osm` needs the network on the first draw; tiles are cached under
+`data/cache/tiles/` and the figure's credit line gains the OpenStreetMap
+attribution. The default Natural Earth rendering is the cleaner one for print.
+
 ## Model and data provenance
 
 Forecasts here are produced by a model this repository does not contain. The
@@ -138,6 +172,7 @@ used unmodified.
 | Checkpoint `WeatherNextCyclones_Mini_<2024.npz` (local pipeline check only) | `gs://dm_graphcast/weathernext2/params/` | CC BY 4.0, (c) Google DeepMind |
 | ERA5 / ERA5T initial conditions | Copernicus Climate Data Store | Copernicus licence; contains modified Copernicus Climate Change Service information 2026 |
 | Typhoon best track | [JMA typhoon position table](https://www.data.jma.go.jp/typhoon/position_table/) | JMA website terms of use |
+| Map tiles (optional, `BASEMAP=osm`) | [OpenStreetMap](https://www.openstreetmap.org) standard tiles | (c) OpenStreetMap contributors, ODbL; [tile usage policy](https://operations.osmfoundation.org/policies/tiles/) |
 
 Any forecast figure or track file derived from those weights carries the CC BY
 4.0 attribution to Google DeepMind. Neither the European Commission nor ECMWF

@@ -32,8 +32,15 @@ to `outputs/<case>/analysis/`. The reference is the preliminary table;
 measured 2026-09-16 the post-analysis CSV stops at 2605, about 3.7 months
 behind, so expect 2624 around the turn of the year, at which point re-running
 `make fetch-besttrack && make evaluate-all` picks it up with no code change.
-Remaining: the across-case comparison (skill against initialization time),
-which needs the three new cases to be run.
+Phase 4 done (2026-09-18): `make evaluate-all` ran over all five cases and
+`make compare-cases` writes the across-case tables and figures (skill against
+initialization time in both the lead-time and the valid-time view, spread
+against skill, genesis, lifetime, member fates) to `outputs/comparison/`,
+which is symlinked to the NAS like the cases. Every evaluated case and the
+comparison also write GeoJSON for QGIS, and `BASEMAP=osm` puts OpenStreetMap
+tiles under the track maps. Findings are in docs/design.md ("Across-case
+comparison"). Nothing planned remains; a -24 h case to bound genesis timing
+was offered and declined, and issue #9 (other models) is open.
 
 ## Hard constraints
 
@@ -73,6 +80,20 @@ which needs the three new cases to be run.
   and it exempts a track from the 2.5-day minimum-duration filter that
   cyclogenesis tracks are subject to. `observed_position` in the config is
   reference data. See docs/requirements.md decision 12.
+* `select_storm` drops every row at or before init time. That is what lets
+  the still-seeded `tracks.csv` of `init-2026-09-01T00` on the NAS evaluate
+  exactly like the unseeded cases (its lead-0 row is the JMA position echoed
+  back); do not re-track or rewrite that file for consistency's sake.
+* Never draw an ensemble-mean track on an across-case figure. The members
+  split into a Japan group and a continent group and the mean runs between
+  them near the observed loop on a path no member took. Any ensemble-mean
+  error is reported next to the count of members within 200 km and the
+  member fates (`compare.member_fate`).
+* Map tiles: only OpenStreetMap's standard tiles are wired in
+  (`plot.map_axes`). Send the project user agent, keep the cache under
+  `data/cache/tiles/` and put the OSM credit on the figure, which
+  `credit_line(source, basemap)` does. CARTO's free tiles are key-gated now
+  (every tile is watermarked "API KEY REQUIRED"), so do not add them.
 
 ## Conventions specific to this repo
 

@@ -6,7 +6,12 @@ the tables and figures. Needs no GPU and no forecast fields: it reads
 
 Results are written beside the tracks, under ``outputs/<case>/analysis/``,
 which is on the NAS through the symlink. The NAS is not always mounted, and
-that alone is enough to make this fail.
+that alone is enough to make this fail. Besides the tables and figures, the
+selected tracks go out as two GeoJSON files (lines and points) for QGIS.
+
+The track map draws Natural Earth coastlines by default; ``--basemap osm``
+puts OpenStreetMap tiles under the tracks instead, which needs the network on
+the first run and adds the tiles' attribution to the credit line.
 
 The reference track is the preliminary JMA table until the post-analysis CSV
 reaches storm 2624, expected around the turn of the year. Re-running this
@@ -16,6 +21,7 @@ change, and every figure carries which release it used.
 Usage:
     uv run python scripts/evaluate.py --config configs/krovanh.yaml --case init-2026-08-31T18
     uv run python scripts/evaluate.py --all-cases
+    uv run python scripts/evaluate.py --case init-2026-09-01T00 --basemap osm
 """
 
 from __future__ import annotations
@@ -26,7 +32,9 @@ from pathlib import Path
 import pandas as pd
 import xarray as xr
 
+from wn2_typhoon.analysis.export import write_tracks
 from wn2_typhoon.analysis.plot import (
+    BASEMAPS,
     credit_line,
     plot_error_vs_lead,
     plot_pressure,
@@ -59,6 +67,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--inputs-dir", type=Path, default=Path("data/interim"))
     parser.add_argument("--out-dir", type=Path, help="default outputs/<case>/analysis")
+    parser.add_argument(
+        "--basemap", choices=BASEMAPS, default="natural-earth",
+        help="map background for the track figure",
+    )
     parser.add_argument(
         "--no-figures", action="store_true", help="write the tables only"
     )
@@ -195,7 +207,10 @@ def evaluate_case(case, cfg: dict, args: argparse.Namespace) -> None:
         ("genesis", genesis), ("lifetime", lifetime), ("track", selected),
     ]:
         table.to_csv(out_dir / f"{name}.csv", index=False)
-    logger.info("wrote 6 tables to %s", out_dir)
+    lines_path, points_path = write_tracks(
+        [(case.id, case.init_time, selected)], best_track, out_dir
+    )
+    logger.info("wrote 6 tables and %s, %s to %s", lines_path.name, points_path.name, out_dir)
 
     if not summary.empty:
         for lead in (24, 48, 72, 120):
@@ -217,10 +232,12 @@ def evaluate_case(case, cfg: dict, args: argparse.Namespace) -> None:
 
     if args.no_figures:
         return
-    credit = credit_line(str(best_track["source"].iloc[0]))
+    source = str(best_track["source"].iloc[0])
+    credit = credit_line(source)
     label = f"Krovanh (T{cfg['storm']['jma_number']}), init {case.init_time} UTC"
     plot_tracks(selected, best_track, out_dir / "tracks.png",
-                title=f"{label} -- ensemble tracks", credit=credit)
+                title=f"{label} -- ensemble tracks",
+                credit=credit_line(source, args.basemap), basemap=args.basemap)
     plot_error_vs_lead(errors, summary, out_dir / "error-vs-lead.png",
                        title=f"{label} -- position error", credit=credit)
     plot_pressure(selected, best_track, out_dir / "pressure.png",
