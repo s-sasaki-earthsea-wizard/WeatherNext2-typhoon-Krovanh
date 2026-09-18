@@ -22,6 +22,7 @@ from wn2_typhoon.analysis.compare import (
     lifetime_by_case,
     load_case,
     member_fate,
+    offset_label,
     pivot,
     skill_by_lead,
     spread_skill,
@@ -141,6 +142,12 @@ def test_case_labels_are_relative_to_formation() -> None:
     assert case_labels(cases, FORMATION) == {"early": "-12 h", "late": "+6 h"}
     same = CaseResult("at", pd.Timestamp(FORMATION), {})
     assert case_labels([same], FORMATION) == {"at": "0 h"}
+
+
+def test_offset_label_reads_as_prose() -> None:
+    assert offset_label("2026-08-31T12:00", FORMATION) == "12 h before formation"
+    assert offset_label("2026-09-01T00:00", FORMATION) == "at formation"
+    assert offset_label("2026-09-01T06:00", FORMATION) == "6 h after formation"
 
 
 def test_skill_by_lead_carries_valid_time_and_the_near_count() -> None:

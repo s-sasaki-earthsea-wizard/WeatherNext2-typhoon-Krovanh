@@ -121,6 +121,27 @@ def case_labels(cases: list[CaseResult], formation_time) -> dict[str, str]:
     return labels
 
 
+def offset_label(init_time, formation_time) -> str:
+    """Describe an initialization relative to formation, in words.
+
+    For figure titles, where "-12 h" alone would leave the reader to work out
+    what it is relative to.
+
+    Args:
+        init_time: Initialization time, UTC ISO 8601 or Timestamp.
+        formation_time: Observed formation time, UTC ISO 8601 or Timestamp.
+
+    Returns:
+        "12 h before formation", "at formation" or "6 h after formation".
+    """
+    hours = (
+        pd.Timestamp(str(init_time)) - pd.Timestamp(str(formation_time))
+    ).total_seconds() / 3600.0
+    if hours == 0:
+        return "at formation"
+    return f"{abs(hours):.0f} h {'before' if hours < 0 else 'after'} formation"
+
+
 def within_column(within_km: float) -> str:
     """Name of the member-count column for a radius."""
     return f"n_within_{within_km:.0f}km"
