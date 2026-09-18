@@ -32,6 +32,7 @@ from pathlib import Path
 import pandas as pd
 import xarray as xr
 
+from wn2_typhoon.analysis.compare import offset_label
 from wn2_typhoon.analysis.export import write_tracks
 from wn2_typhoon.analysis.plot import (
     BASEMAPS,
@@ -234,7 +235,10 @@ def evaluate_case(case, cfg: dict, args: argparse.Namespace) -> None:
         return
     source = str(best_track["source"].iloc[0])
     credit = credit_line(source)
-    label = f"Krovanh (T{cfg['storm']['jma_number']}), init {case.init_time} UTC"
+    label = (
+        f"Krovanh (T{cfg['storm']['jma_number']}), init {case.init_time} UTC, "
+        f"{offset_label(case.init_time, cfg['storm']['formation_time'])}"
+    )
     plot_tracks(selected, best_track, out_dir / "tracks.png",
                 title=f"{label} -- ensemble tracks",
                 credit=credit_line(source, args.basemap), basemap=args.basemap)
