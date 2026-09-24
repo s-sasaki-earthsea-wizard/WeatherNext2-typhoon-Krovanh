@@ -42,7 +42,7 @@ tiles under the track maps. Findings are in docs/design.md ("Across-case
 comparison"). Nothing planned remains; a -24 h case to bound genesis timing
 was offered and declined, and issue #9 (other models) is open.
 2026-09-25: `make evaluate` also writes one track map per member
-(`analysis/members/`) and a 4x2 grid of them (`tracks-by-member.png`), with
+(`analysis/members/`) and a 2x4 grid of them (`tracks-by-member.png`), with
 00Z positions dotted on both tracks; see docs/design.md ("Member track
 maps").
 

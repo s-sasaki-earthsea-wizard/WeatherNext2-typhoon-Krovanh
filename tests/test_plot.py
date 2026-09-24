@@ -24,8 +24,8 @@ from wn2_typhoon.analysis.plot import (
 ccrs = pytest.importorskip("cartopy.crs")
 
 EXTENT = [113.6, 142.7, 18.6, 43.4]
-MARGINS = {"left": 0.07, "right": 0.98, "top": 0.93, "bottom": 0.04,
-           "wspace": 0.08, "hspace": 0.16}
+MARGINS = {"left": 0.04, "right": 0.99, "top": 0.87, "bottom": 0.07,
+           "wspace": 0.06, "hspace": 0.14}
 
 
 def _geo_axes(fig, subplot=(1, 1, 1), extent=(125.0, 135.0, 20.0, 30.0),
@@ -55,8 +55,8 @@ def test_panel_title_is_drawn_when_the_top_labels_are_off() -> None:
     [("natural-earth", ccrs.PlateCarree()), ("osm", ccrs.GOOGLE_MERCATOR)],
 )
 def test_grid_figure_lets_each_map_fill_its_box(basemap, projection) -> None:
-    fig, _ = _grid_figure(EXTENT, basemap, rows=4, columns=2, width=9.0, margins=MARGINS)
-    axes = _geo_axes(fig, (4, 2, 1), EXTENT, projection)
+    fig, _ = _grid_figure(EXTENT, basemap, rows=2, columns=4, width=16.0, margins=MARGINS)
+    axes = _geo_axes(fig, (2, 4, 1), EXTENT, projection)
     box = axes.get_position(original=True)
     axes.apply_aspect()
     active = axes.get_position()

@@ -147,7 +147,7 @@ and writes six tables, four figures and two GeoJSON files to
 The ensemble track map (`tracks.png`) puts every member on one map; the member
 maps draw one member at a time over the ensemble mean and the JMA track, with
 both tracks dotted and dated at 00Z so a member that is on the right path but
-late shows it, and `tracks-by-member.png` lays them out four rows by two.
+late shows it, and `tracks-by-member.png` lays them out two rows by four.
 `compare-cases` reads those tables for every
 evaluated case and writes `outputs/comparison/`: error against lead time and
 against valid time, spread against skill, genesis timing, track end and

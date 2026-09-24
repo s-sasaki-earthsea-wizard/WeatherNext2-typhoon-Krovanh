@@ -446,7 +446,7 @@ def plot_member_grid(
     best_track: pd.DataFrame,
     out_path: Path,
     members=None,
-    columns: int = 2,
+    columns: int = 4,
     title: str | None = None,
     extent=None,
     margin_deg: float = 3.0,
@@ -488,9 +488,9 @@ def plot_member_grid(
         members = sorted(forecast_tracks["member"].unique())
     rows = math.ceil(len(members) / columns)
 
-    width, dpi = 9.0, 160
-    margins = {"left": 0.07, "right": 0.98, "top": 0.93, "bottom": 0.04,
-               "wspace": 0.08, "hspace": 0.16}
+    width, dpi = 16.0, 160
+    margins = {"left": 0.04, "right": 0.99, "top": 0.87, "bottom": 0.07,
+               "wspace": 0.06, "hspace": 0.14}
     fig, panel_width = _grid_figure(extent, basemap, rows, columns, width, margins)
 
     legend = {}
@@ -509,10 +509,10 @@ def plot_member_grid(
             legend.setdefault(label, handle)
     legend[DAILY_LABEL] = _daily_legend_handle()
 
-    fig.legend(legend.values(), legend.keys(), loc="upper center", ncol=3,
-               bbox_to_anchor=(0.5, 0.975), fontsize=8, frameon=False)
+    fig.legend(legend.values(), legend.keys(), loc="upper center", ncol=len(legend),
+               bbox_to_anchor=(0.5, 0.945), fontsize=8, frameon=False)
     if title:
-        fig.suptitle(title, y=0.995)
+        fig.suptitle(title, y=0.99)
     return _finish(fig, out_path, credit)
 
 

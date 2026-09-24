@@ -420,7 +420,7 @@ first and come back watermarked "API KEY REQUIRED" without a key.
 
 Eight members on one map cannot be followed individually, so `evaluate` also
 draws each member alone (`members/track-member-<n>.png`) and the eight in a
-grid (`tracks-by-member.png`, four rows by two). Every map of a case shares
+grid (`tracks-by-member.png`, two rows by four). Every map of a case shares
 the window of `tracks.png`, fitted to all members, so flipping through them
 the map does not move. The member is the subject there and gets a hue
 (#1f5fbf), validated for colour-vision deficiency against the ensemble-mean
