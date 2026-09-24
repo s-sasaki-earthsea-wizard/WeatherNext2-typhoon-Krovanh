@@ -24,7 +24,7 @@ pod  run_inference: per member, rollout (global, streamed, never stored)
                                 -> NAS:/Volumes/EW-NAS-Atoll/.../outputs/<case>/
 Mac  run_tracker  --> outputs/<case>/tracks-retracked.csv   (optional, no GPU)
      fetch_besttrack --> data/raw/jma/{T2624.pdf, table2026.csv}
-     evaluate        --> outputs/<case>/analysis/{6 tables, 2 GeoJSON, 3 figures}
+     evaluate        --> outputs/<case>/analysis/{6 tables, 2 GeoJSON, 4 figures, members/}
      compare_cases   --> outputs/comparison/{9 tables, 2 GeoJSON, 5 figures}
 ```
 
@@ -415,6 +415,36 @@ request carries the project's user agent as the tile usage policy asks, the
 cache lives under `data/cache/tiles/` (cartopy's own default is a temp dir),
 and the credit line gains the OSM attribution. CARTO's light tiles were tried
 first and come back watermarked "API KEY REQUIRED" without a key.
+
+### Member track maps
+
+Eight members on one map cannot be followed individually, so `evaluate` also
+draws each member alone (`members/track-member-<n>.png`) and the eight in a
+grid (`tracks-by-member.png`, two rows by four). Every map of a case shares
+the window of `tracks.png`, fitted to all members, so flipping through them
+the map does not move. The member is the subject there and gets a hue
+(#1f5fbf), validated for colour-vision deficiency against the ensemble-mean
+red and against the Natural Earth and OSM sea and land. The ensemble mean
+stays as on `tracks.png`, cut where the first member ends; these are per-case
+figures, so the across-case rule above does not apply.
+
+Both the member and the JMA track carry a dot at every 00Z position. With one
+member on the map the question is when as well as where, and a member on the
+observed path but a day late shows up as dots out of step. On the single
+maps the dots are dated; the dates are left off the grid, where at that size
+they bury the tracks. The observed storm crawled for two days and looped
+later, so its dates crowd, and a member that follows it puts its own beside
+them: each label takes the first of eight spots around its dot that covers
+no marker and no label placed before it, and the least-overlapping spot when
+none is free, which over the 40 current maps leaves two touching pairs. The
+labels are in the colour of their track, not in ink, because between a blue
+dot and a black one the colour is what says whose date it is.
+
+Panel titles on a map go through `plot._panel_title`. With cartopy's top
+gridline labels off, as `map_axes` sets them, matplotlib 3.11 and cartopy
+0.25 place an automatic axes title at y=inf and silently drop it; the
+case-comparison map lost all six of its panel titles that way until this was
+found. Passing `y` explicitly turns the automatic placement off.
 
 ### GeoJSON for a GIS
 

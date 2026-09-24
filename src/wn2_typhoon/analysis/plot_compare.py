@@ -8,7 +8,6 @@ per case as the second encoding. The observed storm is always black.
 
 from __future__ import annotations
 
-import math
 from pathlib import Path
 
 import matplotlib.dates as mdates
@@ -25,6 +24,8 @@ from wn2_typhoon.analysis.plot import (
     MEMBER_STYLE_ON_TILES,
     OBSERVED_STYLE,
     _finish,
+    _grid_figure,
+    _panel_title,
     map_axes,
     track_extent,
 )
@@ -266,17 +267,6 @@ def plot_spread_vs_error(
     return _finish(fig, out_path, credit)
 
 
-def _extent_aspect(extent, basemap: str) -> float:
-    """Height over width of a map drawn on ``extent`` in the basemap's projection."""
-    lon_span = math.radians(float(extent[1]) - float(extent[0]))
-    if basemap == "osm":
-        # Web Mercator stretches latitude; the tiles are drawn in it.
-        def northing(lat):
-            return math.log(math.tan(math.pi / 4 + math.radians(lat) / 2))
-        return (northing(extent[3]) - northing(extent[2])) / lon_span
-    return math.radians(float(extent[3]) - float(extent[2])) / lon_span
-
-
 def plot_case_tracks(
     cases: list[CaseResult],
     best_track: pd.DataFrame,
@@ -341,15 +331,7 @@ def plot_case_tracks(
     width, dpi = 11.5, 160
     margins = {"left": 0.05, "right": 0.98, "top": 0.9, "bottom": 0.07,
                "wspace": 0.1, "hspace": 0.2}
-    panel_width = width * (margins["right"] - margins["left"]) / (
-        columns + margins["wspace"] * (columns - 1)
-    )
-    panel_height = panel_width * _extent_aspect(extent, basemap)
-    height = panel_height * (rows + margins["hspace"] * (rows - 1)) / (
-        margins["top"] - margins["bottom"]
-    )
-    fig = plt.figure(figsize=(width, height))
-    fig.subplots_adjust(**margins)
+    fig, panel_width = _grid_figure(extent, basemap, rows, columns, width, margins)
     member_style = MEMBER_STYLE_ON_TILES if basemap == "osm" else MEMBER_STYLE
     panel_width_px = panel_width * dpi
 
@@ -365,9 +347,7 @@ def plot_case_tracks(
             axes.plot(group["lon"], group["lat"], transform=ccrs.PlateCarree(),
                       **member_style)
         axes.plot(best["lon"], best["lat"], transform=ccrs.PlateCarree(), **OBSERVED_STYLE)
-        axes.set_title(
-            f"{labels[case.case_id]}  (init {case.init_time:%m-%d %HZ})", fontsize=9
-        )
+        _panel_title(axes, f"{labels[case.case_id]}  (init {case.init_time:%m-%d %HZ})")
 
     # Reference panel: the observed track alone, zoomed, with dates and milestones.
     index = columns * rows - 1
@@ -398,7 +378,7 @@ def plot_case_tracks(
             color=INK["primary"] if milestone else INK["secondary"],
             ha="right" if milestone else "left",
         )
-    axes.set_title("JMA reference (zoomed), 00Z dates and milestones", fontsize=9)
+    _panel_title(axes, "JMA reference (zoomed), 00Z dates and milestones")
 
     if title:
         fig.suptitle(title, y=0.97)

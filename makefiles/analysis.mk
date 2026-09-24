@@ -4,7 +4,7 @@
 # the network on the first draw, cached under data/cache/tiles/ after that).
 BASEMAP ?= natural-earth
 
-evaluate: ## Compare forecast tracks with the JMA best track for CASE (BASEMAP=osm for map tiles)
+evaluate: ## Compare forecast tracks with the JMA best track for CASE: tables, figures, per-member track maps (BASEMAP=osm for map tiles)
 	uv run python scripts/evaluate.py --config $(CONFIG) --case $(CASE) --basemap $(BASEMAP)
 
 evaluate-all: ## Run the comparison for every case that has forecast output
