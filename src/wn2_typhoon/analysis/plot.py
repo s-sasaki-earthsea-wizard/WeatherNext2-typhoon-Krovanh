@@ -208,6 +208,24 @@ def map_axes(
     return axes
 
 
+def _panel_title(axes, text: str, fontsize: float = 9) -> None:
+    """Title a map panel just above its frame.
+
+    Matplotlib lifts an axes title clear of the axes' top decorations. With
+    cartopy's top gridline labels switched off, as :func:`map_axes` does,
+    that height comes back infinite and the title is put at y=inf, which
+    means it is silently not drawn (matplotlib 3.11, cartopy 0.25). Giving
+    ``y`` turns the automatic placement off; nothing sits above the frame
+    to clear anyway.
+
+    Args:
+        axes: Map axes from :func:`map_axes`.
+        text: Title text.
+        fontsize: Font size.
+    """
+    axes.set_title(text, fontsize=fontsize, y=1.0)
+
+
 def _finish(fig, out_path: Path, credit: str | None) -> Path:
     """Add the credit line, save and close.
 

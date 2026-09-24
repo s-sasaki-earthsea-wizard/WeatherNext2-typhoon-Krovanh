@@ -25,6 +25,7 @@ from wn2_typhoon.analysis.plot import (
     MEMBER_STYLE_ON_TILES,
     OBSERVED_STYLE,
     _finish,
+    _panel_title,
     map_axes,
     track_extent,
 )
@@ -365,9 +366,7 @@ def plot_case_tracks(
             axes.plot(group["lon"], group["lat"], transform=ccrs.PlateCarree(),
                       **member_style)
         axes.plot(best["lon"], best["lat"], transform=ccrs.PlateCarree(), **OBSERVED_STYLE)
-        axes.set_title(
-            f"{labels[case.case_id]}  (init {case.init_time:%m-%d %HZ})", fontsize=9
-        )
+        _panel_title(axes, f"{labels[case.case_id]}  (init {case.init_time:%m-%d %HZ})")
 
     # Reference panel: the observed track alone, zoomed, with dates and milestones.
     index = columns * rows - 1
@@ -398,7 +397,7 @@ def plot_case_tracks(
             color=INK["primary"] if milestone else INK["secondary"],
             ha="right" if milestone else "left",
         )
-    axes.set_title("JMA reference (zoomed), 00Z dates and milestones", fontsize=9)
+    _panel_title(axes, "JMA reference (zoomed), 00Z dates and milestones")
 
     if title:
         fig.suptitle(title, y=0.97)
