@@ -9,6 +9,10 @@ which is on the NAS through the symlink. The NAS is not always mounted, and
 that alone is enough to make this fail. Besides the tables and figures, the
 selected tracks go out as two GeoJSON files (lines and points) for QGIS.
 
+The ensemble track map puts every member on one map. Each member also gets a
+map of its own under ``members/``, with 00Z positions dated on it and on the
+reference, and ``tracks-by-member.png`` lays those out in a grid.
+
 The track map draws Natural Earth coastlines by default; ``--basemap osm``
 puts OpenStreetMap tiles under the tracks instead, which needs the network on
 the first run and adds the tiles' attribution to the credit line.
@@ -38,6 +42,8 @@ from wn2_typhoon.analysis.plot import (
     BASEMAPS,
     credit_line,
     plot_error_vs_lead,
+    plot_member_grid,
+    plot_member_track,
     plot_pressure,
     plot_tracks,
 )
@@ -239,14 +245,29 @@ def evaluate_case(case, cfg: dict, args: argparse.Namespace) -> None:
         f"Krovanh (T{cfg['storm']['jma_number']}), init {case.init_time} UTC, "
         f"{offset_label(case.init_time, cfg['storm']['formation_time'])}"
     )
+    map_credit = credit_line(source, args.basemap)
     plot_tracks(selected, best_track, out_dir / "tracks.png",
                 title=f"{label} -- ensemble tracks",
-                credit=credit_line(source, args.basemap), basemap=args.basemap)
+                credit=map_credit, basemap=args.basemap)
     plot_error_vs_lead(errors, summary, out_dir / "error-vs-lead.png",
                        title=f"{label} -- position error", credit=credit)
     plot_pressure(selected, best_track, out_dir / "pressure.png",
                   title=f"{label} -- central pressure", credit=credit)
     logger.info("wrote 3 figures to %s", out_dir)
+
+    # Every member, matched or not, so the panels and file names keep their
+    # member numbers.
+    members = [s.member for s in selections]
+    plot_member_grid(selected, best_track, out_dir / "tracks-by-member.png",
+                     members=members, title=f"{label} -- tracks by member",
+                     credit=map_credit, basemap=args.basemap)
+    member_dir = out_dir / "members"
+    for member in members:
+        plot_member_track(selected, best_track, member,
+                          member_dir / f"track-member-{member}.png",
+                          title=f"{label} -- member {member}",
+                          credit=map_credit, basemap=args.basemap)
+    logger.info("wrote the member grid and %d member maps to %s", len(members), member_dir)
 
 
 def main() -> None:
