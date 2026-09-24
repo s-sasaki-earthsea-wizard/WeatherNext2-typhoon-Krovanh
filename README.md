@@ -142,8 +142,13 @@ make evaluate-all BASEMAP=osm           # track maps on OpenStreetMap tiles
 
 `evaluate` reduces a case's tracker output to one track per member (the
 tracker reports every storm on the globe), scores it against the JMA track,
-and writes six tables, three figures and two GeoJSON files to
-`outputs/<case>/analysis/`. `compare-cases` reads those tables for every
+and writes six tables, four figures and two GeoJSON files to
+`outputs/<case>/analysis/`, plus one track map per member under `members/`.
+The ensemble track map (`tracks.png`) puts every member on one map; the member
+maps draw one member at a time over the ensemble mean and the JMA track, with
+both tracks dotted and dated at 00Z so a member that is on the right path but
+late shows it, and `tracks-by-member.png` lays them out four rows by two.
+`compare-cases` reads those tables for every
 evaluated case and writes `outputs/comparison/`: error against lead time and
 against valid time, spread against skill, genesis timing, track end and
 minimum pressure per member, and where each member's track ended, plus small

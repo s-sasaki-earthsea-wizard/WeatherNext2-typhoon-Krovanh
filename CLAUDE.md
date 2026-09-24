@@ -41,6 +41,10 @@ comparison also write GeoJSON for QGIS, and `BASEMAP=osm` puts OpenStreetMap
 tiles under the track maps. Findings are in docs/design.md ("Across-case
 comparison"). Nothing planned remains; a -24 h case to bound genesis timing
 was offered and declined, and issue #9 (other models) is open.
+2026-09-25: `make evaluate` also writes one track map per member
+(`analysis/members/`) and a 4x2 grid of them (`tracks-by-member.png`), with
+00Z positions dotted on both tracks; see docs/design.md ("Member track
+maps").
 
 ## Hard constraints
 
@@ -89,6 +93,9 @@ was offered and declined, and issue #9 (other models) is open.
   them near the observed loop on a path no member took. Any ensemble-mean
   error is reported next to the count of members within 200 km and the
   member fates (`compare.member_fate`).
+* Title a map panel with `plot._panel_title`, never `axes.set_title`. With
+  the top gridline labels off (as `map_axes` sets them) matplotlib 3.11 and
+  cartopy 0.25 put an automatic title at y=inf and silently drop it.
 * Map tiles: only OpenStreetMap's standard tiles are wired in
   (`plot.map_axes`). Send the project user agent, keep the cache under
   `data/cache/tiles/` and put the OSM credit on the figure, which
