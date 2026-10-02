@@ -2,7 +2,8 @@
 
 Compares one case's forecast tracks with the JMA reference track and writes
 the tables and figures. Needs no GPU and no forecast fields: it reads
-``outputs/<case>/tracks.csv`` and ``data/interim/besttrack.csv`` only.
+``outputs/<case>/tracks.csv`` and ``data/interim/besttrack-<jma_number>.csv``
+only.
 
 Results are written beside the tracks, under ``outputs/<case>/analysis/``,
 which is on the NAS through the symlink. The NAS is not always mounted, and
@@ -55,7 +56,7 @@ from wn2_typhoon.analysis.track_error import (
     position_errors,
     select_storm,
 )
-from wn2_typhoon.config import get_case, load_raw
+from wn2_typhoon.config import besttrack_path, get_case, load_raw
 from wn2_typhoon.data.jma_besttrack import load_track
 from wn2_typhoon.utils.logs import configure
 
@@ -70,7 +71,8 @@ def parse_args() -> argparse.Namespace:
     group.add_argument("--case", help="case id from the config")
     group.add_argument("--all-cases", action="store_true")
     parser.add_argument(
-        "--best-track", type=Path, default=Path("data/interim/besttrack.csv")
+        "--best-track", type=Path,
+        help="default data/interim/besttrack-<jma_number>.csv",
     )
     parser.add_argument("--inputs-dir", type=Path, default=Path("data/interim"))
     parser.add_argument("--out-dir", type=Path, help="default outputs/<case>/analysis")
@@ -275,6 +277,7 @@ def main() -> None:
     args = parse_args()
     configure(logger.name, verbose=args.verbose)
     cfg = load_raw(args.config)
+    args.best_track = args.best_track or besttrack_path(cfg)
 
     case_ids = (
         [entry["id"] for entry in cfg["cases"]] if args.all_cases else [args.case]

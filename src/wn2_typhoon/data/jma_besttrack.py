@@ -331,7 +331,7 @@ def load_track(csv_path: Path) -> pd.DataFrame:
 
     Args:
         csv_path: Path to the stored track, normally
-            ``data/interim/besttrack.csv``.
+            ``data/interim/besttrack-<jma_number>.csv``.
 
     Returns:
         The track in :data:`COLUMNS` order, sorted by time, with ``time`` as

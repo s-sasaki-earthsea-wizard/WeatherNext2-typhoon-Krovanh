@@ -6,9 +6,13 @@ the preliminary one, so the same command keeps working when storm 2624 finally
 appears in the yearly CSV around the turn of the year and the comparison can
 simply be re-run.
 
+The track goes to ``data/interim/besttrack-<jma_number>.csv``, one file per
+storm, so fetching a control storm never overwrites Krovanh's.
+
 Usage:
     uv run python scripts/fetch_besttrack.py --config configs/krovanh.yaml
     uv run python scripts/fetch_besttrack.py --source preliminary --refresh
+    uv run python scripts/fetch_besttrack.py --config configs/dujuan.yaml
 """
 
 from __future__ import annotations
@@ -16,7 +20,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from wn2_typhoon.config import load_raw
+from wn2_typhoon.config import besttrack_path, load_raw
 from wn2_typhoon.data.jma_besttrack import (
     fetch_position_table,
     fetch_preliminary,
@@ -39,7 +43,9 @@ def parse_args() -> argparse.Namespace:
         help="auto prefers the post-analysis table and falls back",
     )
     parser.add_argument("--raw-dir", type=Path, default=Path("data/raw/jma"))
-    parser.add_argument("--out", type=Path, help="default data/interim/besttrack.csv")
+    parser.add_argument(
+        "--out", type=Path, help="default data/interim/besttrack-<jma_number>.csv"
+    )
     parser.add_argument(
         "--refresh", action="store_true", help="re-download even if cached"
     )
@@ -77,7 +83,7 @@ def main() -> None:
             fetch_preliminary(number, pdf_path)
         track = load_preliminary(pdf_path)
 
-    out = args.out or Path("data/interim/besttrack.csv")
+    out = args.out or besttrack_path(cfg)
     out.parent.mkdir(parents=True, exist_ok=True)
     track.to_csv(out, index=False)
 

@@ -1,7 +1,9 @@
 """Experiment configuration loading.
 
-The single source of truth is ``configs/krovanh.yaml``. This module turns it
-into typed objects and resolves one *case* (initialization time) by id.
+There is one YAML file per storm under ``configs/`` (``configs/krovanh.yaml``
+is the default everywhere). This module turns it into typed objects, resolves
+one *case* (initialization time) by id, and derives the paths that are kept
+per storm, so that two storms never write over each other.
 """
 
 from __future__ import annotations
@@ -11,6 +13,11 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+
+#: Where the normalised reference tracks are written, one file per storm.
+BESTTRACK_DIR = Path("data/interim")
+#: Root of the per-case results; the across-case comparison sits under it.
+OUTPUTS_DIR = Path("outputs")
 
 
 @dataclass(frozen=True)
@@ -79,3 +86,33 @@ def get_case(cfg: dict[str, Any], case_id: str) -> Case:
                 ),
             )
     raise KeyError(f"Unknown case id: {case_id}")
+
+
+
+def besttrack_path(cfg: dict[str, Any], interim_dir: Path = BESTTRACK_DIR) -> Path:
+    """Path of the normalised reference track for the configured storm.
+
+    Args:
+        cfg: Parsed configuration (see :func:`load_raw`).
+        interim_dir: Directory holding the reference tracks.
+
+    Returns:
+        ``<interim_dir>/besttrack-<jma_number>.csv``.
+    """
+    return Path(interim_dir) / f"besttrack-{cfg['storm']['jma_number']}.csv"
+
+
+def comparison_dir(cfg: dict[str, Any], outputs_dir: Path = OUTPUTS_DIR) -> Path:
+    """Directory of the across-case comparison for the configured storm.
+
+    The per-case directories need no such split, because case ids carry the
+    initialization date and so never collide between storms.
+
+    Args:
+        cfg: Parsed configuration (see :func:`load_raw`).
+        outputs_dir: Root of the results.
+
+    Returns:
+        ``<outputs_dir>/comparison/<jma_number>``.
+    """
+    return Path(outputs_dir) / "comparison" / str(cfg["storm"]["jma_number"])

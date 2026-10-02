@@ -6,8 +6,9 @@ kept the storm. Reads only the per-case tables that ``scripts/evaluate.py``
 wrote under ``outputs/<case>/analysis/``, so it needs neither the forecast
 fields nor a GPU and reruns in seconds.
 
-Results go to ``outputs/comparison/`` by default: nine tables, two GeoJSON
-files holding every case's tracks for a GIS, and five figures.
+Results go to ``outputs/comparison/<jma_number>/`` by default, one directory
+per storm: nine tables, two GeoJSON files holding every case's tracks for a
+GIS, and five figures.
 
 Usage:
     uv run python scripts/compare_cases.py --config configs/krovanh.yaml
@@ -46,7 +47,7 @@ from wn2_typhoon.analysis.plot_compare import (
     plot_lifetime,
     plot_spread_vs_error,
 )
-from wn2_typhoon.config import get_case, load_raw
+from wn2_typhoon.config import besttrack_path, comparison_dir, get_case, load_raw
 from wn2_typhoon.data.jma_besttrack import load_track
 from wn2_typhoon.utils.logs import configure
 
@@ -62,9 +63,12 @@ def parse_args() -> argparse.Namespace:
         help="case ids to compare; default: every case with an analysis directory",
     )
     parser.add_argument(
-        "--best-track", type=Path, default=Path("data/interim/besttrack.csv")
+        "--best-track", type=Path,
+        help="default data/interim/besttrack-<jma_number>.csv",
     )
-    parser.add_argument("--out-dir", type=Path, default=Path("outputs/comparison"))
+    parser.add_argument(
+        "--out-dir", type=Path, help="default outputs/comparison/<jma_number>"
+    )
     parser.add_argument(
         "--basemap", choices=BASEMAPS, default="natural-earth",
         help="map background for the track figure",
@@ -117,7 +121,7 @@ def main() -> None:
     step_hours = int(cfg["forecast"]["step_hours"])
 
     cases = load_cases(cfg, args.cases)
-    best_track = load_track(args.best_track)
+    best_track = load_track(args.best_track or besttrack_path(cfg))
     labels = case_labels(cases, storm["formation_time"])
     logger.info(
         "Comparing %d cases: %s; reference %s",
@@ -125,7 +129,7 @@ def main() -> None:
         ", ".join(f"{case.case_id} ({labels[case.case_id]})" for case in cases),
         best_track["source"].iloc[0],
     )
-    out_dir = args.out_dir
+    out_dir = args.out_dir or comparison_dir(cfg)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     observed_min_pressure = float(
