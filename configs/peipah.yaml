@@ -1,0 +1,103 @@
+# Experiment configuration: Tropical Storm Peipah, 2025 (JMA number 2515).
+# All timestamps are UTC, ISO 8601.
+#
+# Second control storm of issue #12: matched to Krovanh in intensity, genesis
+# region and time of year, but it crossed Japan west to east instead of
+# stalling. Everything except the storm, the cases and the stored region is
+# copied from configs/krovanh.yaml.
+
+# Storm facts from the JMA post-analysis table (table2025.csv), which is
+# complete for 2025 and carries the depression stage (grade 2) and the
+# extratropical rows (grade 6). Times are UTC as published.
+storm:
+  jma_number: "2515"
+  name: PEIPAH
+  # First analysed position, grade 2, 20.8N 132.4E, 1006 hPa. The cases are
+  # centred on this rather than on formation: the tropical-storm phase lasts
+  # only 42 h, and centring on the TS upgrade would leave 36-60 h of lead to
+  # compare before the extratropical transition.
+  depression_onset_time: "2025-09-02T12:00"
+  # TS upgrade (grade 3), 28.5N 130.9E, 1000 hPa, which JMA counts as
+  # formation, as for Krovanh and Dujuan. It is also the westernmost point
+  # and where the track turns from north-northwest to northeast.
+  formation_time: "2025-09-03T18:00"
+  # Lowest pressure while tropical: 992 hPa at 35.0N 139.7E, held again at
+  # 12Z. The 980 hPa minimum of the whole table falls on 09-06 06Z, after the
+  # transition, as an extratropical low.
+  peak_time: "2025-09-05T07:00"
+  # First grade 6 row, 35.5N 146.2E, 988 hPa. The table goes on as an
+  # extratropical low to 2025-09-10T06 at 181.5E; the comparison stops here.
+  extratropical_time: "2025-09-05T18:00"
+
+besttrack:
+  csv_url: "https://www.data.jma.go.jp/typhoon/position_table/table2025.csv"
+  # Not needed: the post-analysis table already has the storm.
+  preliminary_pdf_url: "https://www.data.jma.go.jp/typhoon/data/T2515.pdf"
+
+model:
+  name: WeatherNext2            # WeatherNext2 | WeatherNextCyclones
+  split: "2025"                 # "<2025": trained on data through 2024
+  checkpoint: model1            # model1 .. model4; null for the Mini models
+  gcs_bucket: dm_graphcast
+
+# Local pipeline check on the Mac; not storm-specific, kept so that every
+# make target works with CONFIG=configs/peipah.yaml.
+smoke:
+  name: WeatherNextCyclones_Mini
+  split: "2024"
+  checkpoint: null
+  resolution: "1.0"
+  sample_init: "2024-10-07 00:00:00"
+  sample_steps: "04"
+
+forecast:
+  step_hours: 6
+  lead_hours: 240               # 10 days = 40 autoregressive steps
+  num_members: 8
+  seed: 0
+
+# Five initialization times 6 h apart, 12 h either side of the first
+# depression row, so the spacing matches Krovanh and Dujuan while the anchor
+# is the earliest analysed position. Every case forecasts the turn at the TS
+# upgrade ahead of time (lead 42 down to 18 h), and the comparison runs to
+# the extratropical row at lead 90 down to 66 h. Six ERA5 frames,
+# 2025-09-01T18 to 2025-09-03T00, consolidated ERA5 rather than ERA5T.
+#
+# observed_position is the JMA post-analysis position at init_time where one
+# exists. Reference data only; tracking runs in cyclogenesis mode for every
+# case (docs/requirements.md decision 12).
+cases:
+  - id: init-2025-09-02T00
+    init_time: "2025-09-02T00:00"   # 09 JST 2 Sep, twelve hours before the first depression row
+    note: before the depression was analysed
+    observed_position: null
+  - id: init-2025-09-02T06
+    init_time: "2025-09-02T06:00"   # 15 JST 2 Sep, six hours before the first depression row
+    note: before the depression was analysed
+    observed_position: null
+  - id: init-2025-09-02T12
+    init_time: "2025-09-02T12:00"   # 21 JST 2 Sep, first depression row
+    note: at the first depression row
+    observed_position: [20.8, 132.4]
+  - id: init-2025-09-02T18
+    init_time: "2025-09-02T18:00"   # 03 JST 3 Sep, six hours after the first depression row
+    note: depression stage
+    observed_position: [21.9, 133.2]
+  - id: init-2025-09-03T00
+    init_time: "2025-09-03T00:00"   # 09 JST 3 Sep, twelve hours after the first depression row
+    note: depression stage
+    observed_position: [23.6, 132.6]
+
+output:
+  # Deliberately wide, as for Dujuan. The tropical track fits in
+  # 20.8-35.3N, 130.9-143.1E and the transition is at 146.2E. West to 110E
+  # because Krovanh, which formed 130 km away the same week, sent members to
+  # the continent; east to 170E and north to 55N for members that run on as
+  # an extratropical low and for a model-side extratropical criterion later;
+  # south to 10N for the vortex before the first depression row.
+  #
+  # 181 x 241 points, 2.19x the Krovanh crop: about 5.0 GB per case, 25 GB
+  # for five on the NAS.
+  region:
+    lat: [10, 55]
+    lon: [110, 170]
