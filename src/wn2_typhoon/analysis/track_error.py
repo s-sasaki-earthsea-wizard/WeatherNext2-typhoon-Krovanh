@@ -406,10 +406,16 @@ def lifetime_report(
     than "when did it weaken to a depression". Read the two together with the
     minimum pressure, which is also reported here.
 
+    For a storm that became extratropical rather than weakening, a late end is
+    expected and is not a lifetime error: the tracker has no extratropical
+    criterion and may follow the low on after the transition.
+
     Args:
         forecast_tracks: One track per member, from :func:`select_storm`.
         selections: The decisions from :func:`select_storm`.
-        observed_end: Observed time the storm ceased to be a typhoon, UTC.
+        observed_end: Observed time the storm ceased to be a tropical storm,
+            by weakening or by becoming extratropical, UTC
+            (``config.tropical_end``).
 
     Returns:
         One row per member: ``member``, ``found``, ``track_end``,

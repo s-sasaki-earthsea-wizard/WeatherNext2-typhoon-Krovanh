@@ -56,8 +56,8 @@ from wn2_typhoon.analysis.track_error import (
     position_errors,
     select_storm,
 )
-from wn2_typhoon.config import besttrack_path, get_case, load_raw
-from wn2_typhoon.data.jma_besttrack import load_track
+from wn2_typhoon.config import besttrack_path, get_case, load_raw, tropical_end
+from wn2_typhoon.data.jma_besttrack import load_track, tropical_phase
 from wn2_typhoon.utils.logs import configure
 
 logger = configure("evaluate")
@@ -171,13 +171,15 @@ def evaluate_case(case, cfg: dict, args: argparse.Namespace) -> None:
     out_dir = args.out_dir or Path("outputs") / case.id / "analysis"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    best_track = load_track(args.best_track)
+    end = tropical_end(cfg)
+    best_track = tropical_phase(load_track(args.best_track), end.time)
     tracks = pd.read_csv(tracks_path)
     logger.info(
-        "Case %s, init %s: %d track rows, reference %s (%d rows, %s to %s)",
+        "Case %s, init %s: %d track rows, reference %s (%d rows, %s to %s, "
+        "cut at the %s transition)",
         case.id, case.init_time, len(tracks),
         best_track["source"].iloc[0], len(best_track),
-        best_track["time"].min(), best_track["time"].max(),
+        best_track["time"].min(), best_track["time"].max(), end.kind,
     )
 
     report_initial_state(case, args.inputs_dir)
@@ -207,9 +209,7 @@ def evaluate_case(case, cfg: dict, args: argparse.Namespace) -> None:
         cfg["storm"]["formation_time"], case.init_time,
         cfg["forecast"]["step_hours"],
     )
-    lifetime = lifetime_report(
-        selected, selections, cfg["storm"]["depression_time"]
-    )
+    lifetime = lifetime_report(selected, selections, end.time)
 
     for name, table in [
         ("selection", chosen), ("errors", errors), ("summary", summary),
@@ -244,7 +244,8 @@ def evaluate_case(case, cfg: dict, args: argparse.Namespace) -> None:
     source = str(best_track["source"].iloc[0])
     credit = credit_line(source)
     label = (
-        f"Krovanh (T{cfg['storm']['jma_number']}), init {case.init_time} UTC, "
+        f"{cfg['storm']['name'].title()} (T{cfg['storm']['jma_number']}), "
+        f"init {case.init_time} UTC, "
         f"{offset_label(case.init_time, cfg['storm']['formation_time'])}"
     )
     map_credit = credit_line(source, args.basemap)

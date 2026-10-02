@@ -47,8 +47,14 @@ from wn2_typhoon.analysis.plot_compare import (
     plot_lifetime,
     plot_spread_vs_error,
 )
-from wn2_typhoon.config import besttrack_path, comparison_dir, get_case, load_raw
-from wn2_typhoon.data.jma_besttrack import load_track
+from wn2_typhoon.config import (
+    besttrack_path,
+    comparison_dir,
+    get_case,
+    load_raw,
+    tropical_end,
+)
+from wn2_typhoon.data.jma_besttrack import load_track, tropical_phase
 from wn2_typhoon.utils.logs import configure
 
 logger = configure("compare_cases")
@@ -121,7 +127,8 @@ def main() -> None:
     step_hours = int(cfg["forecast"]["step_hours"])
 
     cases = load_cases(cfg, args.cases)
-    best_track = load_track(args.best_track or besttrack_path(cfg))
+    end = tropical_end(cfg)
+    best_track = tropical_phase(load_track(args.best_track or besttrack_path(cfg)), end.time)
     labels = case_labels(cases, storm["formation_time"])
     logger.info(
         "Comparing %d cases: %s; reference %s",
@@ -198,11 +205,14 @@ def main() -> None:
         return
     credit = credit_line(str(best_track["source"].iloc[0]), args.basemap)
     plain_credit = credit_line(str(best_track["source"].iloc[0]))
-    label = f"Krovanh (T{storm['jma_number']}), {len(cases)} initialization times"
+    label = (
+        f"{storm['name'].title()} (T{storm['jma_number']}), "
+        f"{len(cases)} initialization times"
+    )
     events = {
         "formation": pd.Timestamp(storm["formation_time"]),
         "minimum pressure": pd.Timestamp(storm["peak_time"]),
-        "depression": pd.Timestamp(storm["depression_time"]),
+        end.kind: pd.Timestamp(end.time),
     }
     plot_error_vs_lead(skill, cases, labels, out_dir / "error-vs-lead.png", args.within_km,
                        title=f"{label} -- error against lead time", credit=plain_credit)

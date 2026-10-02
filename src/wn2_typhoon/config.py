@@ -19,6 +19,13 @@ BESTTRACK_DIR = Path("data/interim")
 #: Root of the per-case results; the across-case comparison sits under it.
 OUTPUTS_DIR = Path("outputs")
 
+#: How a storm stops being a tropical storm in the JMA tables, and the key in
+#: the ``storm`` block that records when. Exactly one must be present.
+TROPICAL_END_KEYS = {
+    "depression": "depression_time",
+    "extratropical": "extratropical_time",
+}
+
 
 @dataclass(frozen=True)
 class Case:
@@ -38,6 +45,20 @@ class Case:
     init_time: str
     note: str = ""
     observed_position: tuple[float, float] | None = None
+
+
+@dataclass(frozen=True)
+class TropicalEnd:
+    """When the storm stopped being a tropical storm, which ends the comparison.
+
+    Attributes:
+        time: Time of JMA's transition row, UTC ISO 8601.
+        kind: ``"depression"`` if it weakened to a tropical depression,
+            ``"extratropical"`` if it became an extratropical low.
+    """
+
+    time: str
+    kind: str
 
 
 def load_raw(path: Path) -> dict[str, Any]:
@@ -87,6 +108,32 @@ def get_case(cfg: dict[str, Any], case_id: str) -> Case:
             )
     raise KeyError(f"Unknown case id: {case_id}")
 
+
+def tropical_end(cfg: dict[str, Any]) -> TropicalEnd:
+    """Return when and how the configured storm stopped being a tropical storm.
+
+    Krovanh weakened to a depression and records ``depression_time``; storms
+    that recurve past Japan become extratropical and record
+    ``extratropical_time`` instead.
+
+    Args:
+        cfg: Parsed configuration (see :func:`load_raw`).
+
+    Raises:
+        ValueError: If the ``storm`` block has neither key or both.
+    """
+    storm = cfg["storm"]
+    present = [
+        (kind, storm[key]) for kind, key in TROPICAL_END_KEYS.items() if storm.get(key)
+    ]
+    if len(present) != 1:
+        keys = " or ".join(TROPICAL_END_KEYS.values())
+        raise ValueError(
+            f"storm {storm.get('jma_number')} must set exactly one of {keys}, "
+            f"found {len(present)}"
+        )
+    kind, time = present[0]
+    return TropicalEnd(time=str(time), kind=kind)
 
 
 def besttrack_path(cfg: dict[str, Any], interim_dir: Path = BESTTRACK_DIR) -> Path:
