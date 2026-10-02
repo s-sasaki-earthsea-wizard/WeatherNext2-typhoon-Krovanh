@@ -9,6 +9,10 @@ Forecast Typhoon Krovanh (2026, JMA 2624) with WeatherNext 2 (FGN) from ERA5
 initial conditions and compare the storm-centre track with the JMA best track.
 Requirements: docs/requirements.md. Design: docs/design.md.
 
+Issue #12 repeats the five cases on two control storms, DUJUAN (2625) and
+PEIPAH (2515), to tell "the model cannot hold this kind of track" from
+"Krovanh was a hard case". Each storm has its own config under configs/.
+
 ## Current phase
 
 Phase 0 done: skeleton and initial commit (2026-09-16).
@@ -35,7 +39,8 @@ behind, so expect 2624 around the turn of the year, at which point re-running
 Phase 4 done (2026-09-18): `make evaluate-all` ran over all five cases and
 `make compare-cases` writes the across-case tables and figures (skill against
 initialization time in both the lead-time and the valid-time view, spread
-against skill, genesis, lifetime, member fates) to `outputs/comparison/`,
+against skill, genesis, lifetime, member fates) to `outputs/comparison/`
+(now `outputs/comparison/2624/`),
 which is symlinked to the NAS like the cases. Every evaluated case and the
 comparison also write GeoJSON for QGIS, and `BASEMAP=osm` puts OpenStreetMap
 tiles under the track maps. Findings are in docs/design.md ("Across-case
@@ -45,6 +50,13 @@ was offered and declined, and issue #9 (other models) is open.
 (`analysis/members/`) and a 2x4 grid of them (`tracks-by-member.png`), with
 00Z positions dotted on both tracks; see docs/design.md ("Member track
 maps").
+2026-10-02: control storms (issue #12, docs/requirements.md 14-15).
+`configs/dujuan.yaml` copies Krovanh's design; `configs/peipah.yaml` centres
+its cases on the first depression row because its tropical-storm phase was
+only 42 h. Inputs for both were built on the Mac and both were queued on
+one pod the same day. The reference track and the comparison are now kept
+per storm, and the comparison is cut at the end of the tropical-storm phase;
+Krovanh's tables are byte-identical under both changes.
 
 ## Hard constraints
 
@@ -88,6 +100,13 @@ maps").
   the still-seeded `tracks.csv` of `init-2026-09-01T00` on the NAS evaluate
   exactly like the unseeded cases (its lead-0 row is the JMA position echoed
   back); do not re-track or rewrite that file for consistency's sake.
+* The comparison covers the tropical-storm phase only. Every script cuts
+  the reference with `jma_besttrack.tropical_phase` at the transition row
+  from `config.tropical_end`: `depression_time` for a storm that weakened
+  (Krovanh), `extratropical_time` for one that went extratropical (DUJUAN,
+  PEIPAH), exactly one per storm. Never score against the uncut table: the
+  post-analysis runs on as grade 6 rows, and a minimum taken over it is the
+  extratropical low's (PEIPAH's 980 hPa; 992 hPa while tropical).
 * Never draw an ensemble-mean track on an across-case figure. The members
   split into a Japan group and a continent group and the mean runs between
   them near the observed loop on a path no member took. Any ensemble-mean
@@ -104,8 +123,12 @@ maps").
 
 ## Conventions specific to this repo
 
-* One YAML config (configs/krovanh.yaml); a "case" is one init time.
-  Adding an init time means appending to `cases`, nothing else.
+* One YAML config per storm (`configs/<storm>.yaml`, chosen with `CONFIG=`);
+  a "case" is one init time. Adding an init time means appending to `cases`,
+  nothing else. `formation_time` means the TS upgrade in every config.
+* Anything kept per storm derives its path from `storm.jma_number`
+  (`config.besttrack_path`, `config.comparison_dir`). Case ids carry the
+  date, so `outputs/<case>` needs no split.
 * Scripts in scripts/ are thin: parse args, load config, call the package.
 * make targets live in makefiles/*.mk with `## help` comments; keep them in
   sync when adding scripts.

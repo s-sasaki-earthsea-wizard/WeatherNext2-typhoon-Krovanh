@@ -23,9 +23,10 @@ pod  run_inference: per member, rollout (global, streamed, never stored)
                  --sync.sh pull--> Mac:staging/<case>/   (pod stops here)
                                 -> NAS:/Volumes/EW-NAS-Atoll/.../outputs/<case>/
 Mac  run_tracker  --> outputs/<case>/tracks-retracked.csv   (optional, no GPU)
-     fetch_besttrack --> data/raw/jma/{T2624.pdf, table2026.csv}
+     fetch_besttrack --> data/raw/jma/{T<number>.pdf, table<year>.csv}
+                     --> data/interim/besttrack-<number>.csv
      evaluate        --> outputs/<case>/analysis/{6 tables, 2 GeoJSON, 4 figures, members/}
-     compare_cases   --> outputs/comparison/{9 tables, 2 GeoJSON, 5 figures}
+     compare_cases   --> outputs/comparison/<number>/{9 tables, 2 GeoJSON, 5 figures}
 ```
 
 Raw ERA5 frames are named after the timestamp they hold and shared by every
@@ -332,6 +333,30 @@ initialization the downloaded ERA5 has its mean sea level pressure minimum at
 the reported 18 m/s. Under-deepening tropical cyclones is a known property of
 0.25 deg reanalysis. Position errors of this order at short lead times say more
 about the initial state than about the model.
+
+### The comparison window ends at the transition
+
+Every storm that recurves past Japan becomes extratropical, and the
+post-analysis table keeps it as grade 6 rows for days afterwards. The tracker
+has no extratropical criterion and may follow the low on, so without a cut
+the forecast would be scored against something that is no longer the storm.
+The JMA survey for issue #12 already fell into it once: PEIPAH's minimum over
+the whole table is 980 hPa, reached as an extratropical low; while tropical
+it never went below 992 hPa.
+
+`config.tropical_end` reads the transition from the `storm` block, as
+`depression_time` or `extratropical_time` (exactly one), and
+`jma_besttrack.tropical_phase` keeps the reference up to and including that
+row. `evaluate` and `compare_cases` cut before anything else reads the track,
+so the position errors, the observed minimum pressure, the fate box and the
+reference line on the maps all describe the tropical phase. A transition time
+with no row in the table raises rather than shifting the window, which also
+catches a post-analysis that moves the transition by a few hours.
+
+The lifetime table still compares each track's end with the transition. For a
+storm that weakened that is a lifetime; for one that went extratropical a late
+end is expected, and the table should be read as "was the storm still tracked
+at the transition" until a model-side criterion exists.
 
 ## Across-case comparison
 

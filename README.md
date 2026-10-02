@@ -7,6 +7,11 @@ from **ERA5** just before the storm formed?
 Only the storm centre is compared. The reference is the JMA typhoon position
 table (best track).
 
+The same five-case experiment is repeated on two control storms (issue #12):
+**DUJUAN** (2026, T2625), a textbook recurve past Honshu at typhoon grade, and
+**PEIPAH** (2025, T2515), a tropical storm that formed near Krovanh in the
+same week and crossed Japan west to east.
+
 ## Status
 
 - [x] Project skeleton
@@ -24,6 +29,10 @@ table (best track).
       and lifetime (`make compare-cases`)
 - [x] Track maps on OpenStreetMap tiles (`BASEMAP=osm`) and GeoJSON export
       of every track for QGIS
+- [x] Control storms configured (`configs/dujuan.yaml`, `configs/peipah.yaml`),
+      reference track and comparison kept per storm, comparison cut at the end
+      of the tropical-storm phase
+- [ ] Control storms: inference, evaluation and comparison with Krovanh
 - [ ] Re-run against the JMA post-analysis table when storm 2624 appears in it
 
 ## Experiment summary
@@ -44,7 +53,7 @@ Details: [docs/requirements.md](docs/requirements.md), [docs/design.md](docs/des
 ## Layout
 
 ```
-configs/krovanh.yaml      experiment config (storm, model, cases, output policy)
+configs/<storm>.yaml      one config per storm: krovanh (default), dujuan, peipah
 src/wn2_typhoon/          package: data / inference / analysis / utils
 scripts/                  thin CLI entry points, one per pipeline step
 runpod/                   setup and run scripts for the H100 pod
@@ -115,8 +124,14 @@ refuses to write a file that would only fail once the weights were loaded.
 ### The reference track
 
 ```bash
-make fetch-besttrack    # post-analysis if it is out, preliminary otherwise
+make fetch-besttrack                           # post-analysis if it is out, preliminary otherwise
+make fetch-besttrack CONFIG=configs/dujuan.yaml
 ```
+
+Each storm's track goes to `data/interim/besttrack-<number>.csv`. The
+comparison uses it up to and including JMA's transition row -- weakening to a
+depression for Krovanh, extratropical transition for DUJUAN and PEIPAH -- and
+nothing after it.
 
 The JMA publishes each storm twice. The post-analysis CSV is the archival
 record but lags the season by about 3.7 months, so storm 2624 is not expected
@@ -149,7 +164,7 @@ maps draw one member at a time over the ensemble mean and the JMA track, with
 both tracks dotted and dated at 00Z so a member that is on the right path but
 late shows it, and `tracks-by-member.png` lays them out two rows by four.
 `compare-cases` reads those tables for every
-evaluated case and writes `outputs/comparison/`: error against lead time and
+evaluated case and writes `outputs/comparison/<number>/`: error against lead time and
 against valid time, spread against skill, genesis timing, track end and
 minimum pressure per member, and where each member's track ended, plus small
 multiples of the tracks and one GeoJSON pair holding every case.
