@@ -1,0 +1,94 @@
+# Experiment configuration: Typhoon Dujuan, 2026 (JMA number 2625).
+# All timestamps are UTC, ISO 8601.
+#
+# First control storm of issue #12: a textbook recurve past Honshu at typhoon
+# grade, the behaviour Krovanh did not have. Everything except the storm, the
+# cases and the stored region is copied from configs/krovanh.yaml so that the
+# two experiments differ in the storm and nothing else.
+
+# Storm facts from the JMA preliminary position table (T2625.pdf), which runs
+# from formation to the extratropical transition. Times converted from JST.
+storm:
+  jma_number: "2625"
+  name: DUJUAN
+  formation_time: "2026-09-16T12:00"      # 21 JST 16 Sep, 16.4N 149.4E, 998 hPa
+  peak_time: "2026-09-21T00:00"           # 09 JST 21 Sep, 32.5N 138.7E, 960 hPa;
+                                          # 960 hPa holds to 15Z
+  # Became extratropical; it did NOT weaken to a tropical depression first.
+  # This is the last row of the position table and the end of the tropical
+  # phase the comparison is about.
+  extratropical_time: "2026-09-22T12:00"  # 21 JST 22 Sep, 40.0N 154.0E, 984 hPa
+
+# Reference track. Same year as Krovanh, so the same two sources apply: the
+# post-analysis CSV is months behind and the preliminary PDF is available now.
+besttrack:
+  csv_url: "https://www.data.jma.go.jp/typhoon/position_table/table2026.csv"
+  preliminary_pdf_url: "https://www.data.jma.go.jp/typhoon/data/T2625.pdf"
+
+model:
+  name: WeatherNext2            # WeatherNext2 | WeatherNextCyclones
+  split: "2025"                 # "<2025": trained on data through 2024
+  checkpoint: model1            # model1 .. model4; null for the Mini models
+  gcs_bucket: dm_graphcast
+
+# Local pipeline check on the Mac; not storm-specific, kept so that every
+# make target works with CONFIG=configs/dujuan.yaml.
+smoke:
+  name: WeatherNextCyclones_Mini
+  split: "2024"
+  checkpoint: null
+  resolution: "1.0"
+  sample_init: "2024-10-07 00:00:00"
+  sample_steps: "04"
+
+forecast:
+  step_hours: 6
+  lead_hours: 240               # 10 days = 40 autoregressive steps
+  num_members: 8
+  seed: 0
+
+# The Krovanh design copied case for case: five initialization times 6 h
+# apart, 12 h either side of formation (the TS upgrade). Six ERA5 frames,
+# 2026-09-15T18 to 2026-09-17T00. A wider span, if needed, is added as extra
+# cases later rather than by changing these.
+#
+# observed_position is the JMA preliminary position at init_time where one
+# exists, null before formation. Reference data only; tracking runs in
+# cyclogenesis mode for every case (docs/requirements.md decision 12).
+cases:
+  - id: init-2026-09-16T00
+    init_time: "2026-09-16T00:00"   # 09 JST 16 Sep, twelve hours before formation
+    note: before formation; no published position exists yet
+    observed_position: null
+  - id: init-2026-09-16T06
+    init_time: "2026-09-16T06:00"   # 15 JST 16 Sep, six hours before formation
+    note: before formation; no published position exists yet
+    observed_position: null
+  - id: init-2026-09-16T12
+    init_time: "2026-09-16T12:00"   # 21 JST 16 Sep, formation
+    note: at formation
+    observed_position: [16.4, 149.4]
+  - id: init-2026-09-16T18
+    init_time: "2026-09-16T18:00"   # 03 JST 17 Sep, six hours after formation
+    note: after formation
+    observed_position: [17.3, 149.6]
+  - id: init-2026-09-17T00
+    init_time: "2026-09-17T00:00"   # 09 JST 17 Sep, twelve hours after formation
+    note: after formation
+    observed_position: [18.9, 150.4]
+
+output:
+  # Deliberately wide, because where the members go cannot be read before the
+  # run. The observed track fits in 16.4-40.0N, 137.5-154.0E. South to 5N for
+  # the pre-formation vortex, which sits south-east of the formation point;
+  # east to 180E and north to 55N so that members that recurve faster, or run
+  # on as an extratropical low, stay inside, and so that a model-side
+  # extratropical criterion (which needs about 500 km around the centre) can
+  # be added later from the stored fields; west to 120E for any member that
+  # heads for the continent and for the upstream trough that turns the storm.
+  #
+  # 201 x 241 points, 2.44x the Krovanh crop. Scaled from Krovanh's measured
+  # 2.287 GB per case: about 5.6 GB per case, 28 GB for five on the NAS.
+  region:
+    lat: [5, 55]
+    lon: [120, 180]
