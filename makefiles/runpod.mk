@@ -9,12 +9,12 @@ runpod-ssh: ## Open an SSH session to the pod
 runpod-push-inputs: ## Upload prepared inputs for CASE to the pod
 	RUNPOD_HOST=$(RUNPOD_HOST) RUNPOD_WORKDIR=$(RUNPOD_WORKDIR) bash runpod/sync.sh push $(CASE)
 
-runpod-pull-outputs: ## Download CASE off the pod and on to the NAS (both legs)
-	RUNPOD_HOST=$(RUNPOD_HOST) RUNPOD_WORKDIR=$(RUNPOD_WORKDIR) \
+runpod-pull-outputs: ## Download CASE of the CONFIG storm off the pod and on to the NAS (both legs)
+	CONFIG=$(CONFIG) RUNPOD_HOST=$(RUNPOD_HOST) RUNPOD_WORKDIR=$(RUNPOD_WORKDIR) \
 	RESULTS_ROOT=$(RESULTS_ROOT) bash runpod/sync.sh pull $(CASE)
 
-runpod-pull-stage: ## Download CASE to staging/ only, so the pod can be stopped
-	RUNPOD_HOST=$(RUNPOD_HOST) RUNPOD_WORKDIR=$(RUNPOD_WORKDIR) bash runpod/sync.sh pull-stage $(CASE)
+runpod-pull-stage: ## Download CASE of the CONFIG storm to staging/ only, so the pod can be stopped
+	CONFIG=$(CONFIG) RUNPOD_HOST=$(RUNPOD_HOST) RUNPOD_WORKDIR=$(RUNPOD_WORKDIR) bash runpod/sync.sh pull-stage $(CASE)
 
-runpod-pull-publish: ## Copy staged CASE to the NAS; needs no pod, safe to retry
-	RESULTS_ROOT=$(RESULTS_ROOT) bash runpod/sync.sh pull-publish $(CASE)
+runpod-pull-publish: ## Copy staged CASE of the CONFIG storm to the NAS; needs no pod, safe to retry
+	CONFIG=$(CONFIG) RESULTS_ROOT=$(RESULTS_ROOT) bash runpod/sync.sh pull-publish $(CASE)

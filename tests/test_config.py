@@ -11,9 +11,11 @@ import pytest
 
 from wn2_typhoon.config import (
     besttrack_path,
+    case_dir,
     comparison_dir,
     get_case,
     load_raw,
+    storm_dir,
     tropical_end,
 )
 
@@ -21,12 +23,14 @@ CONFIGS = sorted((Path(__file__).resolve().parents[1] / "configs").glob("*.yaml"
 
 
 def _cfg(**storm) -> dict:
-    return {"storm": {"jma_number": "2699", **storm}}
+    return {"storm": {"jma_number": "2699", "name": "TESTSTORM", **storm}}
 
 
-def test_paths_are_derived_from_the_storm_number() -> None:
+def test_paths_are_derived_from_the_storm_number_and_name() -> None:
     assert besttrack_path(_cfg()) == Path("data/interim/besttrack-2699.csv")
-    assert comparison_dir(_cfg()) == Path("outputs/comparison/2699")
+    assert storm_dir(_cfg()) == Path("outputs/2699-teststorm")
+    assert case_dir(_cfg(), "init-2026-09-01T00") == Path("outputs/2699-teststorm/init-2026-09-01T00")
+    assert comparison_dir(_cfg()) == Path("outputs/2699-teststorm/comparison")
 
 
 def test_a_storm_that_weakened_ends_at_its_depression_row() -> None:
