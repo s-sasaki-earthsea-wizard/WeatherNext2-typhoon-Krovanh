@@ -257,9 +257,10 @@ def evaluate_case(case, cfg: dict, args: argparse.Namespace) -> None:
         f"{offset_label(case.init_time, cfg['storm']['formation_time'])}"
     )
     map_credit = credit_line(source, args.basemap)
+    formation = cfg["storm"]["formation_time"]
     plot_tracks(selected, best_track, out_dir / "tracks.png",
                 title=f"{label} -- ensemble tracks",
-                credit=map_credit, basemap=args.basemap)
+                credit=map_credit, basemap=args.basemap, formation_time=formation)
     plot_error_vs_lead(errors, summary, out_dir / "error-vs-lead.png",
                        title=f"{label} -- position error", credit=credit)
     plot_pressure(selected, best_track, out_dir / "pressure.png",
@@ -271,13 +272,15 @@ def evaluate_case(case, cfg: dict, args: argparse.Namespace) -> None:
     members = [s.member for s in selections]
     plot_member_grid(selected, best_track, out_dir / "tracks-by-member.png",
                      members=members, title=f"{label} -- tracks by member",
-                     credit=map_credit, basemap=args.basemap)
+                     credit=map_credit, basemap=args.basemap,
+                     formation_time=formation)
     member_dir = out_dir / "members"
     for member in members:
         plot_member_track(selected, best_track, member,
                           member_dir / f"track-member-{member}.png",
                           title=f"{label} -- member {member}",
-                          credit=map_credit, basemap=args.basemap)
+                          credit=map_credit, basemap=args.basemap,
+                          formation_time=formation)
     logger.info("wrote the member grid and %d member maps to %s", len(members), member_dir)
 
 
