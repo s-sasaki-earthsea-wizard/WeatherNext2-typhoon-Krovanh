@@ -419,6 +419,7 @@ def lifetime_report(
     forecast_tracks: pd.DataFrame,
     selections: list[Selection],
     observed_end: str,
+    forecast_end: str | pd.Timestamp | None = None,
 ) -> pd.DataFrame:
     """When each member stopped tracking the storm, against the observed time.
 
@@ -431,18 +432,28 @@ def lifetime_report(
     expected and is not a lifetime error: the tracker has no extratropical
     criterion and may follow the low on after the transition.
 
+    A track that stops before the forecast does is a storm the model lost,
+    which is a result in its own right; one still running at the last step is
+    censored, and its end error is only a lower bound. ``forecast_end`` tells
+    the two apart.
+
     Args:
         forecast_tracks: One track per member, from :func:`select_storm`.
         selections: The decisions from :func:`select_storm`.
         observed_end: Observed time the storm ceased to be a tropical storm,
             by weakening or by becoming extratropical, UTC
             (``config.tropical_end``).
+        forecast_end: Valid time of the last forecast step. Without it the
+            last two columns are left empty.
 
     Returns:
-        One row per member: ``member``, ``found``, ``track_end``,
-        ``observed_end``, ``end_error_hours`` (negative is early),
-        ``duration_hours``, ``min_pressure_hpa``, ``min_pressure_time``.
+        One row per member: ``member``, ``found``, ``track_end`` (when the
+        member lost the storm, or the last step), ``observed_end``,
+        ``end_error_hours`` (negative is early), ``duration_hours``,
+        ``min_pressure_hpa``, ``min_pressure_time``, ``forecast_end`` and
+        ``lost_before_forecast_end``.
     """
+    last_step = None if forecast_end is None else pd.Timestamp(str(forecast_end))
     observed = pd.Timestamp(observed_end)
     rows = []
     for selection in selections:
@@ -455,6 +466,8 @@ def lifetime_report(
             "duration_hours": None,
             "min_pressure_hpa": None,
             "min_pressure_time": None,
+            "forecast_end": last_step,
+            "lost_before_forecast_end": None,
         }
         if selection.found and not forecast_tracks.empty:
             member_rows = forecast_tracks.loc[
@@ -467,6 +480,8 @@ def lifetime_report(
             row["duration_hours"] = (
                 end - member_rows[TRACK_TIME].min()
             ).total_seconds() / 3600.0
+            if last_step is not None:
+                row["lost_before_forecast_end"] = bool(end < last_step)
             if member_rows[TRACK_PRESSURE].notna().any():
                 deepest = member_rows.loc[member_rows[TRACK_PRESSURE].idxmin()]
                 row["min_pressure_hpa"] = float(deepest[TRACK_PRESSURE])

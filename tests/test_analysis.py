@@ -275,6 +275,24 @@ def test_lifetime_reports_the_end_and_the_deepest_pressure() -> None:
     assert row["duration_hours"] == pytest.approx(6.0)
 
 
+def test_lifetime_tells_a_lost_storm_from_a_censored_one() -> None:
+    """Ending before the last step is losing the storm; at it, the forecast ran out."""
+    best = _best_track(["2026-09-01 06:00"], [22.3], [131.4])
+    tracks = _tracks(
+        [
+            (0, 1, "2026-09-01 06:00", 22.3, 131.4, 990.0),
+            (0, 1, "2026-09-01 12:00", 22.4, 131.7, 985.0),
+            (1, 1, "2026-09-01 06:00", 22.3, 131.4, 990.0),
+            (1, 1, "2026-09-01 18:00", 22.5, 131.9, 985.0),
+        ]
+    )
+    selected, selections = select_storm(tracks, best, INIT)
+    report = lifetime_report(selected, selections, "2026-09-01T12:00",
+                             forecast_end="2026-09-01T18:00")
+    assert report["lost_before_forecast_end"].tolist() == [True, False]
+    assert (report["forecast_end"] == pd.Timestamp("2026-09-01 18:00")).all()
+
+
 def test_a_member_that_never_matched_still_appears_in_the_reports() -> None:
     """A miss is a result. Dropping it would silently shrink the ensemble."""
     best = _best_track(["2026-09-01 06:00"], [22.3], [131.4])

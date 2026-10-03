@@ -214,7 +214,10 @@ def evaluate_case(case, cfg: dict, args: argparse.Namespace) -> None:
         cfg["storm"]["formation_time"], case.init_time,
         cfg["forecast"]["step_hours"],
     )
-    lifetime = lifetime_report(selected, selections, end.time)
+    forecast_end = pd.Timestamp(case.init_time) + pd.Timedelta(
+        hours=int(cfg["forecast"]["lead_hours"])
+    )
+    lifetime = lifetime_report(selected, selections, end.time, forecast_end)
 
     for name, table in [
         ("selection", chosen), ("errors", errors), ("summary", summary),
