@@ -184,7 +184,12 @@ def evaluate_case(case, cfg: dict, args: argparse.Namespace) -> None:
 
     report_initial_state(case, args.inputs_dir)
 
-    selected, selections = select_storm(tracks, best_track, case.init_time)
+    # Identify the storm at the TS upgrade, or at the first reference time
+    # after init for a case initialized later than that.
+    selected, selections = select_storm(
+        tracks, best_track, case.init_time,
+        not_before=cfg["storm"]["formation_time"],
+    )
     chosen = selection_table(selections)
     found = int(chosen["found"].sum())
     logger.info(

@@ -84,18 +84,32 @@ class Selection:
         return self.track_id is not None
 
 
-def _anchor_time(member_tracks: pd.DataFrame, best_track: pd.DataFrame, init_time):
+def _anchor_time(
+    member_tracks: pd.DataFrame,
+    best_track: pd.DataFrame,
+    init_time,
+    not_before=None,
+):
     """Earliest time after lead 0 present in both a member's tracks and the reference.
 
     Lead 0 is excluded deliberately. The model predicts nothing there, so any
     row at that time came from the tracker's own input, and on output produced
     before seeding was dropped it is the observed position echoed back. Letting
     it anchor the selection would match a track to itself at zero distance.
+
+    ``not_before`` excludes earlier reference rows as well. evaluate passes the
+    TS upgrade, so that the storm is identified where every config agrees it
+    exists. A post-analysis table starts at the first depression row, which
+    for Peipah is 30 h before the upgrade, and a member whose model storm
+    spun up later than the depression would otherwise be matched against a
+    time when it had nothing there and be counted as a miss.
     """
     shared = np.intersect1d(
         member_tracks[TRACK_TIME].unique(), best_track["time"].unique()
     )
     shared = shared[shared > np.datetime64(pd.Timestamp(str(init_time)))]
+    if not_before is not None:
+        shared = shared[shared >= np.datetime64(pd.Timestamp(str(not_before)))]
     return None if shared.size == 0 else pd.Timestamp(shared.min())
 
 
@@ -104,6 +118,7 @@ def select_member_track(
     best_track: pd.DataFrame,
     init_time: str | np.datetime64,
     threshold_km: float = SELECTION_THRESHOLD_KM,
+    not_before: str | pd.Timestamp | None = None,
 ) -> Selection:
     """Pick the track belonging to the reference storm for one member.
 
@@ -112,12 +127,14 @@ def select_member_track(
         best_track: Reference track from ``data.jma_besttrack.load_track``.
         init_time: Initialization time of the case, so that lead 0 is excluded.
         threshold_km: Distance beyond which the match is rejected.
+        not_before: Earliest reference time that may anchor the match; see
+            :func:`_anchor_time`.
 
     Returns:
         A :class:`Selection`, with ``track_id`` None when no track was near
         enough at the anchor time.
     """
-    anchor = _anchor_time(member_tracks, best_track, init_time)
+    anchor = _anchor_time(member_tracks, best_track, init_time, not_before)
     member = int(member_tracks["member"].iloc[0])
     if anchor is None:
         return Selection(member, None, None, np.nan, np.nan)
@@ -149,6 +166,7 @@ def select_storm(
     best_track: pd.DataFrame,
     init_time: str | np.datetime64,
     threshold_km: float = SELECTION_THRESHOLD_KM,
+    not_before: str | pd.Timestamp | None = None,
 ) -> tuple[pd.DataFrame, list[Selection]]:
     """Reduce a case's tracker output to one track per member.
 
@@ -157,6 +175,9 @@ def select_storm(
         best_track: Reference track from ``data.jma_besttrack.load_track``.
         init_time: Initialization time of the case, so that lead 0 is excluded.
         threshold_km: Distance beyond which a match is rejected.
+        not_before: Earliest reference time that may anchor the match, the TS
+            upgrade in practice; see :func:`_anchor_time`. A track that ended
+            before it is not the member's storm: the member lost it.
 
     Returns:
         ``(selected, selections)``. ``selected`` holds the chosen rows for
@@ -179,7 +200,7 @@ def select_storm(
     selections, chosen = [], []
     for member, member_tracks in tracks.groupby("member", sort=True):
         selection = select_member_track(
-            member_tracks, best_track, init_time, threshold_km
+            member_tracks, best_track, init_time, threshold_km, not_before
         )
         selections.append(selection)
         if selection.found:

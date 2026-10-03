@@ -139,6 +139,32 @@ def test_selection_ignores_lead_zero() -> None:
     assert selections[0].anchor_time == pd.Timestamp("2026-09-01 06:00")
 
 
+def test_a_storm_that_spins_up_after_the_depression_row_is_found_at_formation() -> None:
+    """A post-analysis table starts at the depression; formation is the anchor.
+
+    The member has a decoy far away at the depression row and produces the
+    storm only from formation on. Anchored at the first shared time it is a
+    miss; anchored at formation it is found.
+    """
+    best = _best_track(
+        ["2026-09-01 06:00", "2026-09-01 12:00", "2026-09-01 18:00"],
+        [20.0, 21.0, 22.0], [132.0, 132.0, 132.0],
+    )
+    tracks = _tracks(
+        [
+            (0, 1, "2026-09-01 06:00", 40.0, 160.0, 1000.0),
+            (0, 1, "2026-09-01 12:00", 41.0, 161.0, 1000.0),
+            (0, 2, "2026-09-01 12:00", 21.1, 132.1, 995.0),
+            (0, 2, "2026-09-01 18:00", 22.1, 132.1, 990.0),
+        ]
+    )
+    _, missed = select_storm(tracks, best, INIT)
+    assert not missed[0].found
+    _, found = select_storm(tracks, best, INIT, not_before="2026-09-01 12:00")
+    assert found[0].track_id == "2"
+    assert found[0].anchor_time == pd.Timestamp("2026-09-01 12:00")
+
+
 def test_selected_tracks_start_after_init_time() -> None:
     """A lead-0 row must not leak into the genesis or duration reports.
 
