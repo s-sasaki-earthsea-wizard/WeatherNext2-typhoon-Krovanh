@@ -34,7 +34,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from wn2_typhoon.config import get_case, load_raw
+from wn2_typhoon.config import case_dir, get_case, load_raw
 from wn2_typhoon.inference.inputs import split_for_rollout
 from wn2_typhoon.inference.load_model import build_predictor, download_checkpoint
 from wn2_typhoon.inference.rollout import save_zarr, stream_member
@@ -51,7 +51,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--config", type=Path, default=Path("configs/krovanh.yaml"))
     parser.add_argument("--case", required=True, help="case id from the config")
     parser.add_argument("--inputs", type=Path, help="default data/interim/<case>/inputs.nc")
-    parser.add_argument("--out-dir", type=Path, help="default outputs/<case>")
+    parser.add_argument("--out-dir", type=Path, help="default outputs/<storm>/<case>")
     parser.add_argument("--cache-dir", type=Path, default=Path("data/cache"))
     parser.add_argument("--members", type=int, help="default forecast.num_members")
     parser.add_argument(
@@ -85,7 +85,7 @@ def main() -> None:
     region = cfg["output"]["region"]
 
     inputs_path = args.inputs or Path("data/interim") / case.id / "inputs.nc"
-    out_dir = args.out_dir or Path("outputs") / case.id
+    out_dir = args.out_dir or case_dir(cfg, case.id)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     import jax

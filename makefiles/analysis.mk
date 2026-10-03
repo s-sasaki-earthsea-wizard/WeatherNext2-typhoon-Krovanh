@@ -13,5 +13,5 @@ evaluate-all: ## Run the comparison for every case that has forecast output
 evaluate-tables: ## Comparison tables only for CASE, skipping the figures
 	uv run python scripts/evaluate.py --config $(CONFIG) --case $(CASE) --no-figures
 
-compare-cases: ## Put the evaluated cases side by side in outputs/comparison/<number>/: skill vs init time, spread vs skill, genesis, lifetime
+compare-cases: ## Put the evaluated cases side by side in outputs/<number>-<name>/comparison/: skill vs init time, spread vs skill, genesis, lifetime
 	uv run python scripts/compare_cases.py --config $(CONFIG) --basemap $(BASEMAP)

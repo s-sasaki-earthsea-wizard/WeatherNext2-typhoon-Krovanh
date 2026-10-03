@@ -2,10 +2,10 @@
 
 Compares one case's forecast tracks with the JMA reference track and writes
 the tables and figures. Needs no GPU and no forecast fields: it reads
-``outputs/<case>/tracks.csv`` and ``data/interim/besttrack-<jma_number>.csv``
-only.
+``outputs/<storm>/<case>/tracks.csv`` and
+``data/interim/besttrack-<jma_number>.csv`` only.
 
-Results are written beside the tracks, under ``outputs/<case>/analysis/``,
+Results are written beside the tracks, under ``outputs/<storm>/<case>/analysis/``,
 which is on the NAS through the symlink. The NAS is not always mounted, and
 that alone is enough to make this fail. Besides the tables and figures, the
 selected tracks go out as two GeoJSON files (lines and points) for QGIS.
@@ -56,7 +56,13 @@ from wn2_typhoon.analysis.track_error import (
     position_errors,
     select_storm,
 )
-from wn2_typhoon.config import besttrack_path, get_case, load_raw, tropical_end
+from wn2_typhoon.config import (
+    besttrack_path,
+    case_dir,
+    get_case,
+    load_raw,
+    tropical_end,
+)
 from wn2_typhoon.data.jma_besttrack import load_track, tropical_phase
 from wn2_typhoon.utils.logs import configure
 
@@ -75,7 +81,9 @@ def parse_args() -> argparse.Namespace:
         help="default data/interim/besttrack-<jma_number>.csv",
     )
     parser.add_argument("--inputs-dir", type=Path, default=Path("data/interim"))
-    parser.add_argument("--out-dir", type=Path, help="default outputs/<case>/analysis")
+    parser.add_argument(
+        "--out-dir", type=Path, help="default outputs/<storm>/<case>/analysis"
+    )
     parser.add_argument(
         "--basemap", choices=BASEMAPS, default="natural-earth",
         help="map background for the track figure",
@@ -162,13 +170,13 @@ def evaluate_case(case, cfg: dict, args: argparse.Namespace) -> None:
     Raises:
         SystemExit: If the case has no tracker output yet.
     """
-    tracks_path = Path("outputs") / case.id / "tracks.csv"
+    tracks_path = case_dir(cfg, case.id) / "tracks.csv"
     if not tracks_path.exists():
         raise SystemExit(
             f"no {tracks_path}; run the forecast for {case.id} first, "
             "or mount the NAS if it holds the results"
         )
-    out_dir = args.out_dir or Path("outputs") / case.id / "analysis"
+    out_dir = args.out_dir or case_dir(cfg, case.id) / "analysis"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     end = tropical_end(cfg)
@@ -299,7 +307,7 @@ def main() -> None:
 
     for case_id in case_ids:
         case = get_case(cfg, case_id)
-        if args.all_cases and not (Path("outputs") / case.id / "tracks.csv").exists():
+        if args.all_cases and not (case_dir(cfg, case.id) / "tracks.csv").exists():
             logger.info("Skipping %s: no tracker output yet", case.id)
             continue
         evaluate_case(case, cfg, args)

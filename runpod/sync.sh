@@ -16,21 +16,28 @@
 # Usage (on the Mac):
 #   bash runpod/sync.sh push <case>          # upload prepared inputs
 #   bash runpod/sync.sh pull <case>          # both pull legs, in order
-#   bash runpod/sync.sh pull-stage <case>    # pod -> staging/<case>/
-#   bash runpod/sync.sh pull-publish <case>  # staging/<case>/ -> $RESULTS_ROOT
+#   bash runpod/sync.sh pull-stage <case>    # pod -> staging/<storm>/<case>/
+#   bash runpod/sync.sh pull-publish <case>  # staging/<storm>/<case>/ -> $RESULTS_ROOT
+#   CONFIG=configs/dujuan.yaml bash runpod/sync.sh pull init-2026-09-16T00
 set -euo pipefail
 
 MODE="${1:?push|pull|pull-stage|pull-publish}"
 CASE="${2:?case id required}"
+CONFIG="${CONFIG:-configs/krovanh.yaml}"
 HOST="${RUNPOD_HOST:-runpod}"
 REMOTE="${RUNPOD_WORKDIR:-/workspace/WeatherNext2-typhoon-Krovanh}"
 RESULTS_ROOT="${RESULTS_ROOT:-/Volumes/EW-NAS-Atoll/Projects/personal-dev/WeatherNext2-typhoon-Krovanh}"
+
+# Results are kept per storm, outputs/<number>-<name>/<case>, on the pod, in
+# staging and on the NAS alike. The name comes from the config so that this
+# script and the Python side can never disagree about it.
+STORM="$(uv run python -c "from wn2_typhoon.config import load_raw, storm_dir; print(storm_dir(load_raw('${CONFIG}')).name)")"
 
 # Staging sits in the working copy (git-ignored) rather than under /tmp: a
 # RESULTS_ROOT that is itself local is then on the same filesystem, so the
 # second leg never leaves it, and macOS's periodic /tmp cleanup cannot delete a
 # staged case that is waiting for its second leg to be retried.
-STAGE="staging/${CASE}/"
+STAGE="staging/${STORM}/${CASE}/"
 
 # --partial --append-verify so an interrupted multi-GB transfer resumes instead
 # of restarting; -z is deliberately absent because NetCDF and zarr are already
@@ -96,13 +103,13 @@ pull_stage() {
   check_local_rsync
   check_rsync_over_ssh
   mkdir -p "$STAGE"
-  rsync "${RSYNC_OPTS[@]}" "${HOST}:${REMOTE}/outputs/${CASE}/" "$STAGE"
+  rsync "${RSYNC_OPTS[@]}" "${HOST}:${REMOTE}/outputs/${STORM}/${CASE}/" "$STAGE"
   echo "staged to ${STAGE}; the pod is no longer needed and can be stopped."
 }
 
 # Leg 2: local SSD -> RESULTS_ROOT. Needs no pod, so it is safe to retry.
 pull_publish() {
-  local dest="${RESULTS_ROOT}/outputs/${CASE}/"
+  local dest="${RESULTS_ROOT}/outputs/${STORM}/${CASE}/"
   if [ ! -d "$STAGE" ]; then
     echo "error: nothing staged at ${STAGE}" >&2
     echo "  run this first:  bash runpod/sync.sh pull-stage ${CASE}" >&2
@@ -122,12 +129,14 @@ pull_publish() {
   rm -rf "${STAGE%/}"
 
   # Point the working copy at the published results so the analysis targets read
-  # them in place. The link is at RESULTS_ROOT, never at the staging copy, which
-  # is about to disappear. outputs/* is git-ignored, so it is never committed.
-  local link="outputs/${CASE}"
+  # them in place: one link per storm, so every case and the comparison of a
+  # storm sit under it. The link is at RESULTS_ROOT, never at the staging copy,
+  # which is about to disappear. outputs/* is git-ignored, so it is never
+  # committed.
+  local link="outputs/${STORM}"
   if [ -L "$link" ] || [ ! -e "$link" ]; then
-    ln -sfn "${dest%/}" "$link"
-    echo "pulled to ${dest} (linked as ${link})"
+    ln -sfn "${RESULTS_ROOT}/outputs/${STORM}" "$link"
+    echo "pulled to ${dest} (${link} linked at the NAS)"
   else
     echo "pulled to ${dest}"
     echo "note: ${link} exists and is not a symlink; left alone." >&2

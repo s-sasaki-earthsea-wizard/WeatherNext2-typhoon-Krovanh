@@ -7,15 +7,18 @@
 # Usage (on the pod):
 #   bash runpod/run_all.sh init-2026-08-31T18            # one member, measure
 #   MEMBERS=8 bash runpod/run_all.sh init-2026-08-31T18  # the rest
+#   CONFIG=configs/dujuan.yaml MEMBERS=8 bash runpod/run_all.sh init-2026-09-16T00
 set -euo pipefail
 
 CASE="${1:?case id required}"
 CONFIG="${CONFIG:-configs/krovanh.yaml}"
 MEMBERS="${MEMBERS:-1}"
 START="${MEMBER_START:-0}"
-LOG="outputs/${CASE}/run.log"
+# outputs/<number>-<name>/<case>, the same directory run_inference writes to.
+CASE_DIR="$(uv run python -c "from wn2_typhoon.config import case_dir, load_raw; print(case_dir(load_raw('${CONFIG}'), '${CASE}'))")"
+LOG="${CASE_DIR}/run.log"
 
-mkdir -p "outputs/${CASE}"
+mkdir -p "${CASE_DIR}"
 {
   echo "=== $(date -u +%Y-%m-%dT%H:%M:%SZ) case=${CASE} members=${MEMBERS} start=${START}"
   nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader
@@ -29,4 +32,4 @@ uv run python scripts/run_inference.py \
 
 echo "=== $(date -u +%Y-%m-%dT%H:%M:%SZ) done" | tee -a "$LOG"
 echo
-echo "Pull the results from the Mac:  make runpod-pull-outputs CASE=${CASE}"
+echo "Pull the results from the Mac:  make runpod-pull-outputs CONFIG=${CONFIG} CASE=${CASE}"

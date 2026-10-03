@@ -3,12 +3,11 @@
 Puts the evaluated cases side by side: skill against initialization time,
 spread against skill, genesis timing, and how long and how deep each member
 kept the storm. Reads only the per-case tables that ``scripts/evaluate.py``
-wrote under ``outputs/<case>/analysis/``, so it needs neither the forecast
+wrote under ``outputs/<storm>/<case>/analysis/``, so it needs neither the forecast
 fields nor a GPU and reruns in seconds.
 
-Results go to ``outputs/comparison/<jma_number>/`` by default, one directory
-per storm: nine tables, two GeoJSON files holding every case's tracks for a
-GIS, and five figures.
+Results go to ``outputs/<storm>/comparison/`` by default: nine tables, two
+GeoJSON files holding every case's tracks for a GIS, and five figures.
 
 Usage:
     uv run python scripts/compare_cases.py --config configs/krovanh.yaml
@@ -49,6 +48,7 @@ from wn2_typhoon.analysis.plot_compare import (
 )
 from wn2_typhoon.config import (
     besttrack_path,
+    case_dir,
     comparison_dir,
     get_case,
     load_raw,
@@ -73,7 +73,7 @@ def parse_args() -> argparse.Namespace:
         help="default data/interim/besttrack-<jma_number>.csv",
     )
     parser.add_argument(
-        "--out-dir", type=Path, help="default outputs/comparison/<jma_number>"
+        "--out-dir", type=Path, help="default outputs/<storm>/comparison"
     )
     parser.add_argument(
         "--basemap", choices=BASEMAPS, default="natural-earth",
@@ -106,7 +106,7 @@ def load_cases(cfg: dict, case_ids: list[str] | None) -> list:
     cases = []
     for case_id in wanted:
         case = get_case(cfg, case_id)
-        analysis_dir = Path("outputs") / case.id / "analysis"
+        analysis_dir = case_dir(cfg, case.id) / "analysis"
         if not (analysis_dir / "summary.csv").exists():
             if case_ids:
                 raise SystemExit(f"{case.id} has no analysis; run make evaluate CASE={case.id}")

@@ -40,7 +40,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from wn2_typhoon.config import get_case, load_raw
+from wn2_typhoon.config import case_dir, get_case, load_raw
 from wn2_typhoon.inference.tracker import (
     build_tracker,
     initial_storms_from_positions,
@@ -58,7 +58,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=Path("configs/krovanh.yaml"))
     parser.add_argument("--case", required=True, help="case id from the config")
-    parser.add_argument("--out-dir", type=Path, help="default outputs/<case>")
+    parser.add_argument("--out-dir", type=Path, help="default outputs/<storm>/<case>")
     parser.add_argument(
         "--seed-position",
         type=float,
@@ -83,7 +83,7 @@ def main() -> None:
     configure(logger.name, verbose=args.verbose)
     cfg = load_raw(args.config)
     case = get_case(cfg, args.case)
-    out_dir = args.out_dir or Path("outputs") / case.id
+    out_dir = args.out_dir or case_dir(cfg, case.id)
 
     stores = sorted(out_dir.glob("member-*.zarr"))
     if not stores:

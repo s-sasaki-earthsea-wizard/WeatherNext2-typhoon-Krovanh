@@ -143,8 +143,11 @@ against the CSV later without changing anything downstream.
 
 Forecast output is pulled off the pod to `$RESULTS_ROOT` (the NAS by default,
 see `.env.example`) rather than accumulating on the billed volume.
-`runpod/sync.sh pull` symlinks `outputs/<case>` at the pulled directory, so the
-analysis targets run in the working copy without a second copy of the data.
+`runpod/sync.sh pull` symlinks `outputs/<storm>` (for example
+`outputs/2624-krovanh`) at the NAS, one link per storm, so the analysis targets
+run in the working copy without a second copy of the data. Pass
+`CONFIG=configs/<storm>.yaml` to the make targets for a storm other than
+Krovanh.
 
 ### Comparing the forecasts with the reference
 
@@ -158,13 +161,14 @@ make evaluate-all BASEMAP=osm           # track maps on OpenStreetMap tiles
 `evaluate` reduces a case's tracker output to one track per member (the
 tracker reports every storm on the globe), scores it against the JMA track,
 and writes six tables, four figures and two GeoJSON files to
-`outputs/<case>/analysis/`, plus one track map per member under `members/`.
+`outputs/<storm>/<case>/analysis/`, plus one track map per member under
+`members/`.
 The ensemble track map (`tracks.png`) puts every member on one map; the member
 maps draw one member at a time over the ensemble mean and the JMA track, with
 both tracks dotted and dated at 00Z so a member that is on the right path but
 late shows it, and `tracks-by-member.png` lays them out two rows by four.
 `compare-cases` reads those tables for every
-evaluated case and writes `outputs/comparison/<number>/`: error against lead time and
+evaluated case and writes `outputs/<storm>/comparison/`: error against lead time and
 against valid time, spread against skill, genesis timing, track end and
 minimum pressure per member, and where each member's track ended, plus small
 multiples of the tracks and one GeoJSON pair holding every case.

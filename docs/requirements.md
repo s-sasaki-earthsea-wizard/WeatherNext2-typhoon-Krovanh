@@ -82,8 +82,9 @@ recurving away.
     forecast, not for the question being asked.
 11. **Results storage**: outputs live on the NAS at
     `/Volumes/EW-NAS-Atoll/Projects/personal-dev/WeatherNext2-typhoon-Krovanh/`,
-    with `outputs/` in the working copy symlinked to it so analysis on the Mac
-    needs no copying.
+    one directory per storm (`outputs/2624-krovanh/`, decided 2026-10-03 when
+    the control storms arrived), each symlinked into `outputs/` of the
+    working copy so analysis on the Mac needs no copying.
 12. **Tracker seeding: none, in any case.** Every case is tracked in
     cyclogenesis mode, so no observed position ever enters a forecast track.
     The earlier decision seeded the formation case with the JMA centre; that
