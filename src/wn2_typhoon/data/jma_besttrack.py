@@ -331,7 +331,7 @@ def load_track(csv_path: Path) -> pd.DataFrame:
 
     Args:
         csv_path: Path to the stored track, normally
-            ``data/interim/besttrack.csv``.
+            ``data/interim/besttrack-<jma_number>.csv``.
 
     Returns:
         The track in :data:`COLUMNS` order, sorted by time, with ``time`` as
@@ -351,3 +351,35 @@ def load_track(csv_path: Path) -> pd.DataFrame:
     if missing:
         raise ValueError(f"{csv_path} is missing columns: {', '.join(missing)}")
     return frame[COLUMNS].sort_values("time").reset_index(drop=True)
+
+
+def tropical_phase(track: pd.DataFrame, end_time: str | pd.Timestamp) -> pd.DataFrame:
+    """Cut the reference track at the end of the tropical-storm phase.
+
+    Keeps every row up to and including ``end_time``, JMA's transition row
+    (weakening to a depression, or becoming extratropical), and drops the
+    rest. The post-analysis table runs on past that point, as depression rows
+    or as grade 6 extratropical rows, and without the cut the comparison would
+    silently score the forecast against them: Peipah's table continues for
+    four and a half days as an extratropical low. The transition row itself is
+    kept because Krovanh's preliminary table already ends on it, so the cut
+    leaves Krovanh's comparison exactly as it was.
+
+    Args:
+        track: Reference track from :func:`load_track`.
+        end_time: Time of the transition row, from ``config.tropical_end``.
+
+    Returns:
+        The rows at or before ``end_time``.
+
+    Raises:
+        ValueError: If no row falls at ``end_time``. A mistyped time in the
+            config would otherwise shift the comparison window unnoticed.
+    """
+    end = pd.Timestamp(str(end_time))
+    if not (track["time"] == end).any():
+        raise ValueError(
+            f"the reference track has no row at {end}; check the storm block "
+            "of the config against the JMA table"
+        )
+    return track.loc[track["time"] <= end].reset_index(drop=True)

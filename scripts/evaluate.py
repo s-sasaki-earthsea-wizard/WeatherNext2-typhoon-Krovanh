@@ -2,7 +2,8 @@
 
 Compares one case's forecast tracks with the JMA reference track and writes
 the tables and figures. Needs no GPU and no forecast fields: it reads
-``outputs/<case>/tracks.csv`` and ``data/interim/besttrack.csv`` only.
+``outputs/<case>/tracks.csv`` and ``data/interim/besttrack-<jma_number>.csv``
+only.
 
 Results are written beside the tracks, under ``outputs/<case>/analysis/``,
 which is on the NAS through the symlink. The NAS is not always mounted, and
@@ -55,8 +56,8 @@ from wn2_typhoon.analysis.track_error import (
     position_errors,
     select_storm,
 )
-from wn2_typhoon.config import get_case, load_raw
-from wn2_typhoon.data.jma_besttrack import load_track
+from wn2_typhoon.config import besttrack_path, get_case, load_raw, tropical_end
+from wn2_typhoon.data.jma_besttrack import load_track, tropical_phase
 from wn2_typhoon.utils.logs import configure
 
 logger = configure("evaluate")
@@ -70,7 +71,8 @@ def parse_args() -> argparse.Namespace:
     group.add_argument("--case", help="case id from the config")
     group.add_argument("--all-cases", action="store_true")
     parser.add_argument(
-        "--best-track", type=Path, default=Path("data/interim/besttrack.csv")
+        "--best-track", type=Path,
+        help="default data/interim/besttrack-<jma_number>.csv",
     )
     parser.add_argument("--inputs-dir", type=Path, default=Path("data/interim"))
     parser.add_argument("--out-dir", type=Path, help="default outputs/<case>/analysis")
@@ -169,18 +171,25 @@ def evaluate_case(case, cfg: dict, args: argparse.Namespace) -> None:
     out_dir = args.out_dir or Path("outputs") / case.id / "analysis"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    best_track = load_track(args.best_track)
+    end = tropical_end(cfg)
+    best_track = tropical_phase(load_track(args.best_track), end.time)
     tracks = pd.read_csv(tracks_path)
     logger.info(
-        "Case %s, init %s: %d track rows, reference %s (%d rows, %s to %s)",
+        "Case %s, init %s: %d track rows, reference %s (%d rows, %s to %s, "
+        "cut at the %s transition)",
         case.id, case.init_time, len(tracks),
         best_track["source"].iloc[0], len(best_track),
-        best_track["time"].min(), best_track["time"].max(),
+        best_track["time"].min(), best_track["time"].max(), end.kind,
     )
 
     report_initial_state(case, args.inputs_dir)
 
-    selected, selections = select_storm(tracks, best_track, case.init_time)
+    # Identify the storm at the TS upgrade, or at the first reference time
+    # after init for a case initialized later than that.
+    selected, selections = select_storm(
+        tracks, best_track, case.init_time,
+        not_before=cfg["storm"]["formation_time"],
+    )
     chosen = selection_table(selections)
     found = int(chosen["found"].sum())
     logger.info(
@@ -205,9 +214,10 @@ def evaluate_case(case, cfg: dict, args: argparse.Namespace) -> None:
         cfg["storm"]["formation_time"], case.init_time,
         cfg["forecast"]["step_hours"],
     )
-    lifetime = lifetime_report(
-        selected, selections, cfg["storm"]["depression_time"]
+    forecast_end = pd.Timestamp(case.init_time) + pd.Timedelta(
+        hours=int(cfg["forecast"]["lead_hours"])
     )
+    lifetime = lifetime_report(selected, selections, end.time, forecast_end)
 
     for name, table in [
         ("selection", chosen), ("errors", errors), ("summary", summary),
@@ -242,13 +252,15 @@ def evaluate_case(case, cfg: dict, args: argparse.Namespace) -> None:
     source = str(best_track["source"].iloc[0])
     credit = credit_line(source)
     label = (
-        f"Krovanh (T{cfg['storm']['jma_number']}), init {case.init_time} UTC, "
+        f"{cfg['storm']['name'].title()} (T{cfg['storm']['jma_number']}), "
+        f"init {case.init_time} UTC, "
         f"{offset_label(case.init_time, cfg['storm']['formation_time'])}"
     )
     map_credit = credit_line(source, args.basemap)
+    formation = cfg["storm"]["formation_time"]
     plot_tracks(selected, best_track, out_dir / "tracks.png",
                 title=f"{label} -- ensemble tracks",
-                credit=map_credit, basemap=args.basemap)
+                credit=map_credit, basemap=args.basemap, formation_time=formation)
     plot_error_vs_lead(errors, summary, out_dir / "error-vs-lead.png",
                        title=f"{label} -- position error", credit=credit)
     plot_pressure(selected, best_track, out_dir / "pressure.png",
@@ -260,13 +272,15 @@ def evaluate_case(case, cfg: dict, args: argparse.Namespace) -> None:
     members = [s.member for s in selections]
     plot_member_grid(selected, best_track, out_dir / "tracks-by-member.png",
                      members=members, title=f"{label} -- tracks by member",
-                     credit=map_credit, basemap=args.basemap)
+                     credit=map_credit, basemap=args.basemap,
+                     formation_time=formation)
     member_dir = out_dir / "members"
     for member in members:
         plot_member_track(selected, best_track, member,
                           member_dir / f"track-member-{member}.png",
                           title=f"{label} -- member {member}",
-                          credit=map_credit, basemap=args.basemap)
+                          credit=map_credit, basemap=args.basemap,
+                          formation_time=formation)
     logger.info("wrote the member grid and %d member maps to %s", len(members), member_dir)
 
 
@@ -275,6 +289,7 @@ def main() -> None:
     args = parse_args()
     configure(logger.name, verbose=args.verbose)
     cfg = load_raw(args.config)
+    args.best_track = args.best_track or besttrack_path(cfg)
 
     case_ids = (
         [entry["id"] for entry in cfg["cases"]] if args.all_cases else [args.case]

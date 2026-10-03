@@ -16,6 +16,7 @@ from wn2_typhoon.data.jma_besttrack import (
     load_post_analysis,
     parse_header,
     parse_preliminary_text,
+    tropical_phase,
 )
 
 PRELIMINARY = """2026年台風第24号  KROVANH (2624)
@@ -194,3 +195,42 @@ def test_real_table_agrees_with_the_experiment_config(real_track) -> None:
 
 def test_the_storm_weakened_rather_than_going_extratropical(real_track) -> None:
     assert real_track["remark"].iloc[-1] == "熱帯低気圧に変わる"
+
+
+def test_cutting_krovanh_at_its_depression_row_changes_nothing(real_track) -> None:
+    """The table already ends there, so the cut must leave Krovanh alone."""
+    cut = tropical_phase(real_track, "2026-09-07T00:00")
+    pd.testing.assert_frame_equal(cut, real_track)
+
+
+def test_the_transition_row_is_kept_and_what_follows_is_dropped() -> None:
+    track = parse_preliminary_text(PRELIMINARY)
+    cut = tropical_phase(track, "2026-09-01T18:00")
+    assert len(cut) == len(track) - 1
+    assert cut["time"].iloc[-1] == pd.Timestamp("2026-09-01T18:00")
+
+
+def test_an_end_time_with_no_row_is_refused() -> None:
+    track = parse_preliminary_text(PRELIMINARY)
+    with pytest.raises(ValueError, match="no row at"):
+        tropical_phase(track, "2026-09-01T01:00")
+
+
+REAL_2025 = Path(__file__).resolve().parents[1] / "data/raw/jma/table2025.csv"
+
+
+def test_peipah_is_cut_at_its_first_extratropical_row() -> None:
+    """Grade 6 rows run on for days; only the first one survives the cut.
+
+    It is also what the candidate survey got wrong: the minimum pressure over
+    the whole table is the extratropical low's 980 hPa, not the storm's.
+    """
+    if not REAL_2025.exists():
+        pytest.skip(f"cache {REAL_2025.name} to run this")
+    track = load_post_analysis(REAL_2025, "2515")
+    cut = tropical_phase(track, "2025-09-05T18:00")
+    assert list(cut["grade"].iloc[-2:]) == [3, 6]
+    assert (track["grade"] == 6).sum() > 1
+    assert track["pressure_hpa"].min() == 980.0
+    assert cut["pressure_hpa"].min() == 988.0
+    assert cut.loc[cut["grade"] < 6, "pressure_hpa"].min() == 992.0

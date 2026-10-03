@@ -158,6 +158,53 @@ def track_extent(
     ]
 
 
+def plate_carree_for(extent):
+    """Plate carree centred so that ``extent`` is one contiguous window.
+
+    Tracks keep the tracker's [0, 360) longitudes, and a member that recurves
+    past 180E puts the window across the dateline. On a map centred at 0 such
+    a window wraps into a whole-globe strip with the track's far end on the
+    other side; centring at 180 keeps it in one piece. Data is still plotted
+    with ``transform=ccrs.PlateCarree()``. The tile background of
+    :func:`map_axes` does not handle such a window yet.
+
+    Args:
+        extent: ``[lon_min, lon_max, lat_min, lat_max]`` in degrees east.
+
+    Returns:
+        A ``cartopy.crs.PlateCarree``.
+    """
+    import cartopy.crs as ccrs
+
+    return ccrs.PlateCarree(central_longitude=180.0 if float(extent[1]) > 180.0 else 0.0)
+
+
+def dateline_ticks(extent) -> list[float] | None:
+    """Longitude gridlines for a window across the dateline, or None otherwise.
+
+    Cartopy picks gridline positions from the window as seen in a map centred
+    at 0, where a window across 180 looks like the whole globe, and ends up
+    with one line every 60 degrees. Picking them from the window itself and
+    wrapping them to [-180, 180) gives the usual spacing. Windows short of
+    the dateline keep cartopy's own choice, so their figures do not change.
+
+    Args:
+        extent: ``[lon_min, lon_max, lat_min, lat_max]`` in degrees east.
+
+    Returns:
+        Gridline longitudes in [-180, 180), or None.
+    """
+    import matplotlib.ticker as mticker
+
+    if float(extent[1]) <= 180.0:
+        return None
+    ticks = mticker.MaxNLocator(nbins=6, steps=[1, 2, 5, 10]).tick_values(
+        float(extent[0]), float(extent[1])
+    )
+    inside = ticks[(ticks >= extent[0]) & (ticks <= extent[1])]
+    return [float((tick + 180.0) % 360.0 - 180.0) for tick in inside]
+
+
 def map_axes(
     fig,
     subplot: tuple[int, int, int],
@@ -198,7 +245,7 @@ def map_axes(
         axes.add_image(tiler, tile_zoom(extent, width_px), interpolation="spline36")
         grid_colour = "#666666"
     else:
-        axes = fig.add_subplot(*subplot, projection=ccrs.PlateCarree())
+        axes = fig.add_subplot(*subplot, projection=plate_carree_for(extent))
         axes.set_extent(extent, crs=ccrs.PlateCarree())
         axes.add_feature(cfeature.LAND.with_scale("50m"), facecolor="#f2f0eb", zorder=0)
         axes.add_feature(cfeature.OCEAN.with_scale("50m"), facecolor="#eaf1f7", zorder=0)
@@ -208,9 +255,11 @@ def map_axes(
         )
         grid_colour = "#cccccc"
 
+    ticks = dateline_ticks(extent)
     gridlines = axes.gridlines(
         draw_labels=True, linewidth=0.3, color=grid_colour, alpha=0.6,
         xlabel_style={"size": 8}, ylabel_style={"size": 8},
+        **({} if ticks is None else {"xlocs": ticks}),
     )
     gridlines.top_labels = gridlines.right_labels = False
     gridlines.left_labels = "left" in label_sides
@@ -341,6 +390,7 @@ def plot_tracks(
     margin_deg: float = 3.0,
     credit: str | None = None,
     basemap: str = "natural-earth",
+    formation_time=None,
 ) -> Path:
     """Draw the ensemble tracks over the reference track on a map.
 
@@ -353,6 +403,10 @@ def plot_tracks(
         credit: Attribution line; built from the reference's ``source`` column
             and ``basemap`` when omitted. Pass an empty string to suppress it.
         basemap: Map background, one of :data:`BASEMAPS`.
+        formation_time: When the storm formed (the TS upgrade), where the
+            reference is circled; its first row when None, which is the
+            formation for a preliminary table and the first depression row
+            for a post-analysis one.
 
     Returns:
         ``out_path``.
@@ -377,7 +431,7 @@ def plot_tracks(
             **member_style,
         )
     _draw_ensemble_mean(axes, forecast_tracks)
-    _draw_reference(axes, best_track)
+    _draw_reference(axes, best_track, formation_time)
 
     # A GeoAxes keeps a fixed aspect, so it shrinks inside its subplot box and
     # an axes title floats far above the map. Put it on the figure instead.
@@ -397,6 +451,7 @@ def plot_member_track(
     margin_deg: float = 3.0,
     credit: str | None = None,
     basemap: str = "natural-earth",
+    formation_time=None,
 ) -> Path:
     """Draw one member's track over the ensemble mean and the reference.
 
@@ -419,6 +474,10 @@ def plot_member_track(
         credit: Attribution line; built from the reference's ``source`` column
             and ``basemap`` when omitted. Pass an empty string to suppress it.
         basemap: Map background, one of :data:`BASEMAPS`.
+        formation_time: When the storm formed (the TS upgrade), where the
+            reference is circled; its first row when None, which is the
+            formation for a preliminary table and the first depression row
+            for a post-analysis one.
 
     Returns:
         ``out_path``.
@@ -432,7 +491,8 @@ def plot_member_track(
     fig = plt.figure(figsize=figsize)
     axes = map_axes(fig, (1, 1, 1), extent, basemap, width_px=figsize[0] * dpi)
     _draw_member(axes, forecast_tracks, best_track, member,
-                 label=_member_caption(forecast_tracks, member), dated=True)
+                 label=_member_caption(forecast_tracks, member), dated=True,
+                 formation_time=formation_time)
     if title:
         fig.suptitle(title, y=0.92)
     handles, labels = axes.get_legend_handles_labels()
@@ -452,6 +512,7 @@ def plot_member_grid(
     margin_deg: float = 3.0,
     credit: str | None = None,
     basemap: str = "natural-earth",
+    formation_time=None,
 ) -> Path:
     """One map per member, laid out in a grid on one shared window.
 
@@ -476,6 +537,10 @@ def plot_member_grid(
         credit: Attribution line; built from the reference's ``source`` column
             and ``basemap`` when omitted. Pass an empty string to suppress it.
         basemap: Map background, one of :data:`BASEMAPS`.
+        formation_time: When the storm formed (the TS upgrade), where the
+            reference is circled; its first row when None, which is the
+            formation for a preliminary table and the first depression row
+            for a post-analysis one.
 
     Returns:
         ``out_path``.
@@ -502,12 +567,15 @@ def plot_member_grid(
         axes = map_axes(fig, (rows, columns, index + 1), extent, basemap,
                         width_px=panel_width * dpi, label_sides=sides)
         _draw_member(axes, forecast_tracks, best_track, member,
-                     label="member track", dated=False)
+                     label="member track", dated=False, formation_time=formation_time)
         _panel_title(axes, _member_caption(forecast_tracks, member))
         # A panel without a track has no member handle, so gather from all.
         for handle, label in zip(*axes.get_legend_handles_labels(), strict=True):
             legend.setdefault(label, handle)
     legend[DAILY_LABEL] = _daily_legend_handle()
+    # Lead with the member line even when the first panel had no track.
+    if "member track" in legend:
+        legend = {"member track": legend.pop("member track"), **legend}
 
     fig.legend(legend.values(), legend.keys(), loc="upper center", ncol=len(legend),
                bbox_to_anchor=(0.5, 0.945), fontsize=8, frameon=False)
@@ -550,12 +618,28 @@ def _draw_ensemble_mean(axes, forecast_tracks: pd.DataFrame) -> None:
     )
 
 
-def _draw_reference(axes, best_track: pd.DataFrame) -> None:
-    """Draw the reference track and circle its first position, the formation.
+def _formation_point(best_track: pd.DataFrame, formation_time=None) -> tuple[float, float]:
+    """Where the storm formed: the row at ``formation_time``, else the first row.
+
+    The first row is the formation only for a preliminary table, which starts
+    there. A post-analysis table starts at the first depression row, which
+    for Peipah is 30 h earlier and 870 km to the south-southeast.
+    """
+    best = best_track.sort_values("time")
+    if formation_time is not None:
+        at = best.loc[best["time"] == pd.Timestamp(str(formation_time))]
+        if not at.empty:
+            return float(at["lon"].iloc[0]), float(at["lat"].iloc[0])
+    return float(best["lon"].iloc[0]), float(best["lat"].iloc[0])
+
+
+def _draw_reference(axes, best_track: pd.DataFrame, formation_time=None) -> None:
+    """Draw the reference track and circle the formation.
 
     Args:
         axes: Map axes from :func:`map_axes`.
         best_track: Reference track from ``data.jma_besttrack.load_track``.
+        formation_time: See :func:`_formation_point`.
     """
     import cartopy.crs as ccrs
 
@@ -565,7 +649,7 @@ def _draw_reference(axes, best_track: pd.DataFrame) -> None:
         transform=ccrs.PlateCarree(), label="JMA reference", **OBSERVED_STYLE,
     )
     axes.plot(
-        best["lon"].iloc[0], best["lat"].iloc[0],
+        *_formation_point(best, formation_time),
         marker="o", markersize=FORMATION_MARKER_SIZE, markerfacecolor="none",
         markeredgecolor="#111111", markeredgewidth=2.0,
         transform=ccrs.PlateCarree(), zorder=6, linestyle="none",
@@ -720,6 +804,7 @@ def _draw_member(
     member: int,
     label: str,
     dated: bool,
+    formation_time=None,
 ) -> None:
     """Draw one member over the ensemble mean and the reference, dotted at 00Z.
 
@@ -730,6 +815,7 @@ def _draw_member(
         member: The member to draw.
         label: Legend label of the member's line.
         dated: Whether to label the 00Z dots with their dates.
+        formation_time: See :func:`_formation_point`.
     """
     import cartopy.crs as ccrs
 
@@ -744,13 +830,13 @@ def _draw_member(
         axes.text(0.5, 0.5, "no matching storm", transform=axes.transAxes,
                   ha="center", va="center", fontsize=9, color=INK["secondary"])
     _draw_ensemble_mean(axes, forecast_tracks)
-    _draw_reference(axes, best)
+    _draw_reference(axes, best, formation_time)
 
     member_daily, best_daily = _daily(track, TRACK_TIME), _daily(best, "time")
     _draw_daily_dots(axes, member_daily, MEMBER_FOCUS_STYLE)
     _draw_daily_dots(axes, best_daily, OBSERVED_STYLE)
     if dated:
-        formation = (best["lon"].iloc[0], best["lat"].iloc[0], FORMATION_MARKER_SIZE / 2 + 1)
+        formation = (*_formation_point(best, formation_time), FORMATION_MARKER_SIZE / 2 + 1)
         _label_dates(axes, [(member_daily, TRACK_TIME, "right", MEMBER_FOCUS_STYLE["color"]),
                             (best_daily, "time", "left", OBSERVED_STYLE["color"])],
                      size=6.5, rings=[formation])

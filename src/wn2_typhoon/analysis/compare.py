@@ -256,8 +256,9 @@ def lifetime_by_case(
         One row per case: ``case``, ``init_time``, ``n_found``, the median,
         min and max of ``end_error_hours``, ``n_outliving_observed`` (members
         still tracked after the observed weakening), ``median_duration_hours``,
-        ``median_min_pressure_hpa``, ``deepest_hpa`` and
-        ``n_deeper_than_observed``.
+        ``median_min_pressure_hpa``, ``deepest_hpa``,
+        ``n_deeper_than_observed`` and ``n_lost_before_forecast_end`` (empty
+        for a case evaluated before that column existed).
     """
     rows = []
     for case in cases:
@@ -277,6 +278,12 @@ def lifetime_by_case(
                 "deepest_hpa": found["min_pressure_hpa"].min(),
                 "n_deeper_than_observed": int(
                     (found["min_pressure_hpa"] < observed_min_pressure_hpa).sum()
+                ),
+                "n_lost_before_forecast_end": (
+                    int(found["lost_before_forecast_end"].astype(bool).sum())
+                    if "lost_before_forecast_end" in found
+                    and found["lost_before_forecast_end"].notna().all()
+                    else None
                 ),
             }
         )

@@ -84,18 +84,32 @@ class Selection:
         return self.track_id is not None
 
 
-def _anchor_time(member_tracks: pd.DataFrame, best_track: pd.DataFrame, init_time):
+def _anchor_time(
+    member_tracks: pd.DataFrame,
+    best_track: pd.DataFrame,
+    init_time,
+    not_before=None,
+):
     """Earliest time after lead 0 present in both a member's tracks and the reference.
 
     Lead 0 is excluded deliberately. The model predicts nothing there, so any
     row at that time came from the tracker's own input, and on output produced
     before seeding was dropped it is the observed position echoed back. Letting
     it anchor the selection would match a track to itself at zero distance.
+
+    ``not_before`` excludes earlier reference rows as well. evaluate passes the
+    TS upgrade, so that the storm is identified where every config agrees it
+    exists. A post-analysis table starts at the first depression row, which
+    for Peipah is 30 h before the upgrade, and a member whose model storm
+    spun up later than the depression would otherwise be matched against a
+    time when it had nothing there and be counted as a miss.
     """
     shared = np.intersect1d(
         member_tracks[TRACK_TIME].unique(), best_track["time"].unique()
     )
     shared = shared[shared > np.datetime64(pd.Timestamp(str(init_time)))]
+    if not_before is not None:
+        shared = shared[shared >= np.datetime64(pd.Timestamp(str(not_before)))]
     return None if shared.size == 0 else pd.Timestamp(shared.min())
 
 
@@ -104,6 +118,7 @@ def select_member_track(
     best_track: pd.DataFrame,
     init_time: str | np.datetime64,
     threshold_km: float = SELECTION_THRESHOLD_KM,
+    not_before: str | pd.Timestamp | None = None,
 ) -> Selection:
     """Pick the track belonging to the reference storm for one member.
 
@@ -112,12 +127,14 @@ def select_member_track(
         best_track: Reference track from ``data.jma_besttrack.load_track``.
         init_time: Initialization time of the case, so that lead 0 is excluded.
         threshold_km: Distance beyond which the match is rejected.
+        not_before: Earliest reference time that may anchor the match; see
+            :func:`_anchor_time`.
 
     Returns:
         A :class:`Selection`, with ``track_id`` None when no track was near
         enough at the anchor time.
     """
-    anchor = _anchor_time(member_tracks, best_track, init_time)
+    anchor = _anchor_time(member_tracks, best_track, init_time, not_before)
     member = int(member_tracks["member"].iloc[0])
     if anchor is None:
         return Selection(member, None, None, np.nan, np.nan)
@@ -149,6 +166,7 @@ def select_storm(
     best_track: pd.DataFrame,
     init_time: str | np.datetime64,
     threshold_km: float = SELECTION_THRESHOLD_KM,
+    not_before: str | pd.Timestamp | None = None,
 ) -> tuple[pd.DataFrame, list[Selection]]:
     """Reduce a case's tracker output to one track per member.
 
@@ -157,6 +175,9 @@ def select_storm(
         best_track: Reference track from ``data.jma_besttrack.load_track``.
         init_time: Initialization time of the case, so that lead 0 is excluded.
         threshold_km: Distance beyond which a match is rejected.
+        not_before: Earliest reference time that may anchor the match, the TS
+            upgrade in practice; see :func:`_anchor_time`. A track that ended
+            before it is not the member's storm: the member lost it.
 
     Returns:
         ``(selected, selections)``. ``selected`` holds the chosen rows for
@@ -179,7 +200,7 @@ def select_storm(
     selections, chosen = [], []
     for member, member_tracks in tracks.groupby("member", sort=True):
         selection = select_member_track(
-            member_tracks, best_track, init_time, threshold_km
+            member_tracks, best_track, init_time, threshold_km, not_before
         )
         selections.append(selection)
         if selection.found:
@@ -398,6 +419,7 @@ def lifetime_report(
     forecast_tracks: pd.DataFrame,
     selections: list[Selection],
     observed_end: str,
+    forecast_end: str | pd.Timestamp | None = None,
 ) -> pd.DataFrame:
     """When each member stopped tracking the storm, against the observed time.
 
@@ -406,16 +428,32 @@ def lifetime_report(
     than "when did it weaken to a depression". Read the two together with the
     minimum pressure, which is also reported here.
 
+    For a storm that became extratropical rather than weakening, a late end is
+    expected and is not a lifetime error: the tracker has no extratropical
+    criterion and may follow the low on after the transition.
+
+    A track that stops before the forecast does is a storm the model lost,
+    which is a result in its own right; one still running at the last step is
+    censored, and its end error is only a lower bound. ``forecast_end`` tells
+    the two apart.
+
     Args:
         forecast_tracks: One track per member, from :func:`select_storm`.
         selections: The decisions from :func:`select_storm`.
-        observed_end: Observed time the storm ceased to be a typhoon, UTC.
+        observed_end: Observed time the storm ceased to be a tropical storm,
+            by weakening or by becoming extratropical, UTC
+            (``config.tropical_end``).
+        forecast_end: Valid time of the last forecast step. Without it the
+            last two columns are left empty.
 
     Returns:
-        One row per member: ``member``, ``found``, ``track_end``,
-        ``observed_end``, ``end_error_hours`` (negative is early),
-        ``duration_hours``, ``min_pressure_hpa``, ``min_pressure_time``.
+        One row per member: ``member``, ``found``, ``track_end`` (when the
+        member lost the storm, or the last step), ``observed_end``,
+        ``end_error_hours`` (negative is early), ``duration_hours``,
+        ``min_pressure_hpa``, ``min_pressure_time``, ``forecast_end`` and
+        ``lost_before_forecast_end``.
     """
+    last_step = None if forecast_end is None else pd.Timestamp(str(forecast_end))
     observed = pd.Timestamp(observed_end)
     rows = []
     for selection in selections:
@@ -428,6 +466,8 @@ def lifetime_report(
             "duration_hours": None,
             "min_pressure_hpa": None,
             "min_pressure_time": None,
+            "forecast_end": last_step,
+            "lost_before_forecast_end": None,
         }
         if selection.found and not forecast_tracks.empty:
             member_rows = forecast_tracks.loc[
@@ -440,6 +480,8 @@ def lifetime_report(
             row["duration_hours"] = (
                 end - member_rows[TRACK_TIME].min()
             ).total_seconds() / 3600.0
+            if last_step is not None:
+                row["lost_before_forecast_end"] = bool(end < last_step)
             if member_rows[TRACK_PRESSURE].notna().any():
                 deepest = member_rows.loc[member_rows[TRACK_PRESSURE].idxmin()]
                 row["min_pressure_hpa"] = float(deepest[TRACK_PRESSURE])

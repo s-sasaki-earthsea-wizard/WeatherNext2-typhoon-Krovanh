@@ -73,7 +73,8 @@ recurving away.
    more than one case. The pod is created per run with ssh over an exposed TCP
    port (the ssh.runpod.io proxy supports no rsync), and the ssh alias in
    `~/.ssh/config` is rewritten each time.
-10. **Stored output**: the regional crop only, at 15-50N 115-150E, all
+10. **Stored output**: the regional crop only, at 15-50N 115-150E for Krovanh
+    (the control storms carry their own, decision 14), all
     variables and all 13 levels. Global fields exist only in memory during
     tracking. The crop covers Taiwan, the Chinese coast, the East China Sea,
     the Nansei islands and the Japanese archipelago; the observed track fits
@@ -112,3 +113,41 @@ recurving away.
 13. **Budget**: a 30 USD credit is available. The first case is run with one
     member to measure wall-clock before committing to the full ensemble.
     Anything beyond roughly 100 USD is discussed before spending.
+14. **Control storms (2026-10-01 and 10-02, issue #12)**: the five cases are
+    repeated on DUJUAN (2625) and PEIPAH (2515), each with its own config.
+    They control for different things. PEIPAH matches Krovanh in grade (both
+    tropical storms), genesis region and week; DUJUAN matches the pipeline
+    (same year, ERA5T, preliminary reference) but reached typhoon grade.
+
+    | | DUJUAN (2625) | PEIPAH (2515) |
+    |---|---|---|
+    | Cases, 6 h apart | 2026-09-16 00Z to 09-17 00Z | 2025-09-02 00Z to 09-03 00Z |
+    | Centred on | TS upgrade, 09-16 12Z | first depression row, 09-02 12Z |
+    | TS upgrade | 09-16 12Z, 16.4N 149.4E | 09-03 18Z, 28.5N 130.9E |
+    | Peak while tropical | 960 hPa | 992 hPa |
+    | Transition | extratropical 09-22 12Z, 40.0N 154.0E | extratropical 09-05 18Z, 35.5N 146.2E |
+    | Initial conditions | ERA5T | consolidated ERA5 |
+    | Reference | preliminary PDF | post-analysis CSV |
+    | Stored crop | 5-55N 120-180E, ~5.5 GB per case | 10-55N 110-170E, ~5.0 GB per case |
+
+    DUJUAN copies Krovanh's design case for case. PEIPAH's tropical-storm
+    phase lasted only 42 h, so centring its cases on the TS upgrade would
+    leave 36-60 h of lead before the transition; centred on the first
+    depression row, every case forecasts the turn at the upgrade 18-42 h
+    ahead and is compared up to lead 66-90 h. `formation_time` still means the
+    TS upgrade in every config. The crops are wide on purpose: where the
+    members go cannot be read before the run, and a model-side extratropical
+    criterion would need the fields around the centre.
+15. **The comparison covers the tropical-storm phase only (2026-10-02).**
+    The reference is cut at JMA's transition row, kept, and nothing after it
+    is scored: weakening to a depression for Krovanh (`depression_time`),
+    extratropical transition for DUJUAN and PEIPAH (`extratropical_time`).
+    The tracker still runs the full 240 h; forecast positions past the
+    transition simply have nothing to be compared against. Keeping the
+    transition row leaves Krovanh's comparison byte-identical, since its
+    preliminary table ends there.
+
+    Still open: whether the pre-formation depression rows of a post-analysis
+    table are scored (binding now for PEIPAH, at the turn of the year for the
+    2026 storms), and how the lifetime and member-fate tables should read for
+    a storm that went extratropical, which the tracker can follow on.
