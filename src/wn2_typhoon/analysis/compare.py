@@ -1,6 +1,6 @@
 """Compare the cases with each other.
 
-The per-case tables under ``outputs/<case>/analysis/`` answer "how good was
+The per-case tables under ``outputs/<storm>/<case>/analysis/`` answer "how good was
 this forecast". Read side by side they answer the question the five
 initialization times were run for: does skill depend on how much of the storm
 the analysis had seen, and how does the ensemble's spread relate to its error.

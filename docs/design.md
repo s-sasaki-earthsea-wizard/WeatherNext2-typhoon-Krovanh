@@ -18,20 +18,25 @@ Mac  CDS (ERA5T) --download_era5--> data/raw/era5/{pressure,single}_levels_<stam
                  --prepare_inputs-> data/interim/<case>/inputs.nc   (~0.3 GB)
                  --sync.sh push---> pod:/workspace/.../data/interim/<case>/
 pod  run_inference: per member, rollout (global, streamed, never stored)
-                                -> track     -> outputs/<case>/tracks.csv
-                                -> crop      -> outputs/<case>/member-XX.zarr
-                 --sync.sh pull--> Mac:staging/<case>/   (pod stops here)
-                                -> NAS:/Volumes/EW-NAS-Atoll/.../outputs/<case>/
-Mac  run_tracker  --> outputs/<case>/tracks-retracked.csv   (optional, no GPU)
+                                -> track     -> outputs/<storm>/<case>/tracks.csv
+                                -> crop      -> outputs/<storm>/<case>/member-XX.zarr
+                 --sync.sh pull--> Mac:staging/<storm>/<case>/   (pod stops here)
+                                -> NAS:/Volumes/EW-NAS-Atoll/.../outputs/<storm>/<case>/
+Mac  run_tracker  --> outputs/<storm>/<case>/tracks-retracked.csv   (optional, no GPU)
      fetch_besttrack --> data/raw/jma/{T<number>.pdf, table<year>.csv}
                      --> data/interim/besttrack-<number>.csv
-     evaluate        --> outputs/<case>/analysis/{6 tables, 2 GeoJSON, 4 figures, members/}
-     compare_cases   --> outputs/comparison/<number>/{9 tables, 2 GeoJSON, 5 figures}
+     evaluate        --> outputs/<storm>/<case>/analysis/{6 tables, 2 GeoJSON, 4 figures, members/}
+     compare_cases   --> outputs/<storm>/comparison/{9 tables, 2 GeoJSON, 5 figures}
 ```
+
+`<storm>` is `<jma_number>-<name>`, `2624-krovanh`: the number because
+names are reused across years, the name so a listing reads without a lookup.
+`config.storm_dir` derives it from the config, and the shell scripts on the
+pod ask the same function, so no path is spelled twice.
 
 Raw ERA5 frames are named after the timestamp they hold and shared by every
 case: each case needs t-6h and t, and the five cases are 6 h apart, so
-consecutive cases share a frame and the five cost six frames rather than ten. `outputs/<case>` in the working copy is a symlink to the NAS, so the
+consecutive cases share a frame and the five cost six frames rather than ten. `outputs/<storm>` in the working copy is a symlink to the NAS, so the
 analysis steps read what the pull wrote without a second copy.
 
 ## Model input contract
@@ -217,8 +222,8 @@ at that host and port directly. `runpod/sync.sh` then uses plain rsync:
 
 ```
 push:         data/interim/<case>/     -> pod:.../data/interim/<case>/
-pull-stage:   pod:.../outputs/<case>/  -> staging/<case>/
-pull-publish: staging/<case>/          -> $RESULTS_ROOT/outputs/<case>/
+pull-stage:   pod:.../outputs/<storm>/<case>/  -> staging/<storm>/<case>/
+pull-publish: staging/<storm>/<case>/          -> $RESULTS_ROOT/outputs/<storm>/<case>/
 pull:         both pull legs, in order
 ```
 
@@ -230,7 +235,7 @@ SSD, after which the pod can be stopped; the second leg runs between the Mac
 and the NAS with the pod already off. Whether the split is faster end to end is
 not measured (#5); what it changes for certain is how long the pod is billed.
 
-Staging is `staging/<case>/` in the working copy, git-ignored. It is there
+Staging is `staging/<storm>/<case>/` in the working copy, git-ignored. It is there
 rather than under `/tmp` so that a `RESULTS_ROOT` which is itself local is on
 the same filesystem, keeping the second leg off the network entirely, and so
 that nothing outside this repository can delete a case that is waiting to be

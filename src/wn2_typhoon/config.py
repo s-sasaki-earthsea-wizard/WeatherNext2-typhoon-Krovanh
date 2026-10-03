@@ -16,7 +16,8 @@ import yaml
 
 #: Where the normalised reference tracks are written, one file per storm.
 BESTTRACK_DIR = Path("data/interim")
-#: Root of the per-case results; the across-case comparison sits under it.
+#: Root of the results. Each storm has a directory under it, named by its
+#: JMA number and name, holding its cases and their comparison.
 OUTPUTS_DIR = Path("outputs")
 
 #: How a storm stops being a tropical storm in the JMA tables, and the key in
@@ -149,17 +150,46 @@ def besttrack_path(cfg: dict[str, Any], interim_dir: Path = BESTTRACK_DIR) -> Pa
     return Path(interim_dir) / f"besttrack-{cfg['storm']['jma_number']}.csv"
 
 
-def comparison_dir(cfg: dict[str, Any], outputs_dir: Path = OUTPUTS_DIR) -> Path:
-    """Directory of the across-case comparison for the configured storm.
+def storm_dir(cfg: dict[str, Any], outputs_dir: Path = OUTPUTS_DIR) -> Path:
+    """Directory holding everything of the configured storm.
 
-    The per-case directories need no such split, because case ids carry the
-    initialization date and so never collide between storms.
+    Named by number and name, ``2624-krovanh``: the number because names are
+    reused across years, the name so a listing reads without a lookup. On the
+    Mac it is a symlink to the same directory on the NAS.
 
     Args:
         cfg: Parsed configuration (see :func:`load_raw`).
         outputs_dir: Root of the results.
 
     Returns:
-        ``<outputs_dir>/comparison/<jma_number>``.
+        ``<outputs_dir>/<jma_number>-<name>``.
     """
-    return Path(outputs_dir) / "comparison" / str(cfg["storm"]["jma_number"])
+    storm = cfg["storm"]
+    return Path(outputs_dir) / f"{storm['jma_number']}-{str(storm['name']).lower()}"
+
+
+def case_dir(cfg: dict[str, Any], case_id: str, outputs_dir: Path = OUTPUTS_DIR) -> Path:
+    """Directory of one case's forecast output and analysis.
+
+    Args:
+        cfg: Parsed configuration (see :func:`load_raw`).
+        case_id: Value of the ``id`` field under ``cases``.
+        outputs_dir: Root of the results.
+
+    Returns:
+        ``<storm_dir>/<case_id>``.
+    """
+    return storm_dir(cfg, outputs_dir) / case_id
+
+
+def comparison_dir(cfg: dict[str, Any], outputs_dir: Path = OUTPUTS_DIR) -> Path:
+    """Directory of the across-case comparison for the configured storm.
+
+    Args:
+        cfg: Parsed configuration (see :func:`load_raw`).
+        outputs_dir: Root of the results.
+
+    Returns:
+        ``<storm_dir>/comparison``.
+    """
+    return storm_dir(cfg, outputs_dir) / "comparison"
