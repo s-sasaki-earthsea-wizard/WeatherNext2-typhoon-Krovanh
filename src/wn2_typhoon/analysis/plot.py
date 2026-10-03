@@ -158,6 +158,53 @@ def track_extent(
     ]
 
 
+def plate_carree_for(extent):
+    """Plate carree centred so that ``extent`` is one contiguous window.
+
+    Tracks keep the tracker's [0, 360) longitudes, and a member that recurves
+    past 180E puts the window across the dateline. On a map centred at 0 such
+    a window wraps into a whole-globe strip with the track's far end on the
+    other side; centring at 180 keeps it in one piece. Data is still plotted
+    with ``transform=ccrs.PlateCarree()``. The tile background of
+    :func:`map_axes` does not handle such a window yet.
+
+    Args:
+        extent: ``[lon_min, lon_max, lat_min, lat_max]`` in degrees east.
+
+    Returns:
+        A ``cartopy.crs.PlateCarree``.
+    """
+    import cartopy.crs as ccrs
+
+    return ccrs.PlateCarree(central_longitude=180.0 if float(extent[1]) > 180.0 else 0.0)
+
+
+def dateline_ticks(extent) -> list[float] | None:
+    """Longitude gridlines for a window across the dateline, or None otherwise.
+
+    Cartopy picks gridline positions from the window as seen in a map centred
+    at 0, where a window across 180 looks like the whole globe, and ends up
+    with one line every 60 degrees. Picking them from the window itself and
+    wrapping them to [-180, 180) gives the usual spacing. Windows short of
+    the dateline keep cartopy's own choice, so their figures do not change.
+
+    Args:
+        extent: ``[lon_min, lon_max, lat_min, lat_max]`` in degrees east.
+
+    Returns:
+        Gridline longitudes in [-180, 180), or None.
+    """
+    import matplotlib.ticker as mticker
+
+    if float(extent[1]) <= 180.0:
+        return None
+    ticks = mticker.MaxNLocator(nbins=6, steps=[1, 2, 5, 10]).tick_values(
+        float(extent[0]), float(extent[1])
+    )
+    inside = ticks[(ticks >= extent[0]) & (ticks <= extent[1])]
+    return [float((tick + 180.0) % 360.0 - 180.0) for tick in inside]
+
+
 def map_axes(
     fig,
     subplot: tuple[int, int, int],
@@ -198,7 +245,7 @@ def map_axes(
         axes.add_image(tiler, tile_zoom(extent, width_px), interpolation="spline36")
         grid_colour = "#666666"
     else:
-        axes = fig.add_subplot(*subplot, projection=ccrs.PlateCarree())
+        axes = fig.add_subplot(*subplot, projection=plate_carree_for(extent))
         axes.set_extent(extent, crs=ccrs.PlateCarree())
         axes.add_feature(cfeature.LAND.with_scale("50m"), facecolor="#f2f0eb", zorder=0)
         axes.add_feature(cfeature.OCEAN.with_scale("50m"), facecolor="#eaf1f7", zorder=0)
@@ -208,9 +255,11 @@ def map_axes(
         )
         grid_colour = "#cccccc"
 
+    ticks = dateline_ticks(extent)
     gridlines = axes.gridlines(
         draw_labels=True, linewidth=0.3, color=grid_colour, alpha=0.6,
         xlabel_style={"size": 8}, ylabel_style={"size": 8},
+        **({} if ticks is None else {"xlocs": ticks}),
     )
     gridlines.top_labels = gridlines.right_labels = False
     gridlines.left_labels = "left" in label_sides

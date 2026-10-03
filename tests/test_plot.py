@@ -19,6 +19,8 @@ from wn2_typhoon.analysis.plot import (
     _label_dates,
     _member_caption,
     _panel_title,
+    dateline_ticks,
+    plate_carree_for,
 )
 
 ccrs = pytest.importorskip("cartopy.crs")
@@ -121,3 +123,23 @@ def test_member_caption_names_the_end_or_the_miss() -> None:
     )
     assert _member_caption(tracks, 0) == "member 0, track ends 09-06 00Z"
     assert _member_caption(tracks, 3) == "member 3, no matching storm"
+
+
+def test_a_window_across_the_dateline_stays_one_piece() -> None:
+    """A member past 180E must not stretch the map round the globe."""
+    extent = [132.9, 194.9, 13.0, 63.0]
+    fig = plt.figure()
+    axes = _geo_axes(fig, extent=extent, projection=plate_carree_for(extent))
+    west, east, _, _ = axes.get_extent(crs=ccrs.PlateCarree(central_longitude=180))
+    assert east - west == pytest.approx(62.0, abs=0.5)
+    plt.close(fig)
+
+
+def test_a_window_short_of_the_dateline_keeps_the_usual_centre() -> None:
+    assert plate_carree_for(EXTENT).proj4_params["lon_0"] == 0.0
+
+
+def test_gridlines_across_the_dateline_are_spaced_from_the_window() -> None:
+    ticks = dateline_ticks([132.9, 194.9, 13.0, 63.0])
+    assert ticks == [140.0, 160.0, -180.0]
+    assert dateline_ticks(EXTENT) is None
