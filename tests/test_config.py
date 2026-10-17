@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from wn2_typhoon.config import (
+    across_storms_dir,
     besttrack_path,
     case_dir,
     comparison_dir,
@@ -31,6 +32,7 @@ def test_paths_are_derived_from_the_storm_number_and_name() -> None:
     assert storm_dir(_cfg()) == Path("outputs/2699-teststorm")
     assert case_dir(_cfg(), "init-2026-09-01T00") == Path("outputs/2699-teststorm/init-2026-09-01T00")
     assert comparison_dir(_cfg()) == Path("outputs/2699-teststorm/comparison")
+    assert across_storms_dir() == Path("outputs/storms")
 
 
 def test_a_storm_that_weakened_ends_at_its_depression_row() -> None:
@@ -55,9 +57,13 @@ def test_the_end_must_be_unambiguous(storm) -> None:
 
 @pytest.mark.parametrize("path", CONFIGS, ids=lambda path: path.stem)
 def test_every_storm_config_is_complete(path) -> None:
-    """A tropical end, and cases whose ids spell their init times."""
+    """A tropical end, a loop start inside the tropical phase, and cases
+    whose ids spell their init times."""
     cfg = load_raw(path)
-    tropical_end(cfg)
+    end = tropical_end(cfg)
+    loop_start = cfg["storm"].get("loop_start_time")
+    if loop_start:
+        assert cfg["storm"]["formation_time"] < loop_start < end.time
     for entry in cfg["cases"]:
         case = get_case(cfg, entry["id"])
         assert case.id == "init-" + case.init_time[:13]
