@@ -57,6 +57,12 @@ only 42 h. Inputs for both were built on the Mac and both were queued on
 one pod the same day. The reference track and the comparison are now kept
 per storm, and the comparison is cut at the end of the tropical-storm phase;
 Krovanh's tables are byte-identical under both changes.
+2026-10-17: `make compare-storms` puts the three storms side by side in
+`outputs/storms/` (docs/requirements.md 16, docs/design.md "Across-storm
+comparison"). The error is split into the distance to the observed path and
+the clock along it: Dujuan stays on the road and runs ~14 h ahead after its
+turn, Krovanh leaves the road at its stall. Target: a talk at the VRChat
+physics meetup on 2026-10-31.
 
 ## Hard constraints
 
@@ -107,6 +113,12 @@ Krovanh's tables are byte-identical under both changes.
   PEIPAH), exactly one per storm. Never score against the uncut table: the
   post-analysis runs on as grade 6 rows, and a minimum taken over it is the
   extratropical low's (PEIPAH's 980 hPa; 992 hPa while tropical).
+* Do not compare storms by km error alone; report the distance to the path
+  and the clock (`analysis/path_offset.py`) beside it. The clock is read
+  only up to `loop_start_time` where the storm block sets one (Krovanh,
+  its northernmost point): past it the loop puts two passes days apart
+  within reach of one position. Positions beyond either end of the path are
+  counted apart, never as off the path.
 * Never draw an ensemble-mean track on an across-case figure. The members
   split into a Japan group and a continent group and the mean runs between
   them near the observed loop on a path no member took. Any ensemble-mean

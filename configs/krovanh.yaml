@@ -8,6 +8,11 @@ storm:
   name: KROVANH
   formation_time: "2026-09-01T00:00"    # 09 JST 1 Sep, 22.6N 131.9E, 996 hPa
   peak_time: "2026-09-03T00:00"         # 09 JST 3 Sep, 26.3N 130.5E, 985 hPa
+  # Northernmost point, where the track turns from northwest to south-
+  # southwest and starts the loop that crosses its own path on 6 Sep. The
+  # clock along the observed path is read only up to here; past it two
+  # passes of the storm, days apart, are equally near (analysis/path_offset.py).
+  loop_start_time: "2026-09-04T06:00"   # 15 JST 4 Sep, 29.8N 127.4E
   # Weakened back to a tropical depression; it did NOT become extratropical.
   # This is the last row of the position table, so the comparison window ends
   # here even though the forecast runs to 240 h.

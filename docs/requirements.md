@@ -152,3 +152,20 @@ recurving away.
     table are scored (binding now for PEIPAH, at the turn of the year for the
     2026 storms), and how the lifetime and member-fate tables should read for
     a storm that went extratropical, which the tracker can follow on.
+16. **Storms are compared by distance to the path and clock along it
+    (2026-10-17).** Pooled over each storm's cases, km errors are not
+    comparable across storms: Dujuan and Peipah run at 50 km/h after
+    recurving, where a few hours of timing make hundreds of km, while
+    Krovanh crawled. Every forecast position is therefore also measured as
+    its distance to the observed path at any time ("on the path" within
+    200 km, the radius of the member counts) and its clock, when the
+    observed storm passed the nearest point minus the valid time. Positions
+    behind the path's start or past its end are counted apart, not as off
+    the path. Krovanh's clock is read only up to its northernmost point,
+    2026-09-04 06Z (`loop_start_time`), because its loop brings two passes
+    days apart within reach of the same position. Shares are over the
+    members still tracking the storm, so Peipah's tracker-filtered members
+    are not charged to the model. Track ends are read against the
+    dissipation where it is known (Krovanh), since the tracker follows the
+    vortex rather than the tropical storm. A rank histogram is deferred:
+    the error-to-spread ratio already shows the under-dispersion.

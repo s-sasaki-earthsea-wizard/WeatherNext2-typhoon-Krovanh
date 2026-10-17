@@ -32,7 +32,9 @@ same week and crossed Japan west to east.
 - [x] Control storms configured (`configs/dujuan.yaml`, `configs/peipah.yaml`),
       reference track and comparison kept per storm, comparison cut at the end
       of the tropical-storm phase
-- [ ] Control storms: inference, evaluation and comparison with Krovanh
+- [x] Control storms: inference and evaluation, five cases of 8 members each
+- [x] Comparison across storms, the error split into distance to the observed
+      path and the clock along it (`make compare-storms`)
 - [ ] Re-run against the JMA post-analysis table when storm 2624 appears in it
 
 ## Experiment summary
@@ -155,6 +157,7 @@ Krovanh.
 make evaluate CASE=init-2026-09-01T00   # one case
 make evaluate-all                       # every case with tracker output
 make compare-cases                      # the cases side by side
+make compare-storms                     # the storms side by side
 make evaluate-all BASEMAP=osm           # track maps on OpenStreetMap tiles
 ```
 
@@ -172,6 +175,16 @@ evaluated case and writes `outputs/<storm>/comparison/`: error against lead time
 against valid time, spread against skill, genesis timing, track end and
 minimum pressure per member, and where each member's track ended, plus small
 multiples of the tracks and one GeoJSON pair holding every case.
+
+`compare-storms` pools each storm's cases by lead time and writes
+`outputs/storms/` (a symlink to the NAS, made by hand like the per-storm
+ones): the mean error and the members at the observed position, the members
+on the observed path at any time and their clock along it (how many hours
+ahead or behind the storm they are), when the tracks ended against the end of
+the tropical phase and the dissipation, and spread against skill. Krovanh,
+Dujuan and Peipah run in that order by default; see docs/design.md
+("Across-storm comparison") for why km errors alone do not compare across
+storms.
 
 The GeoJSON files (`tracks-lines.geojson`, `tracks-points.geojson`) drop
 straight onto a QGIS map: one line per member plus the reference, and one
