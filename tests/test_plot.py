@@ -106,6 +106,53 @@ def test_date_labels_keep_off_each_other_and_the_dots() -> None:
     plt.close(fig)
 
 
+def test_a_label_at_the_panel_edge_turns_inward() -> None:
+    """A long label on the preferred side would run past the panel's left edge.
+
+    The comparison's reference panel is zoomed to 1.5 degrees round the track,
+    which printed Peipah's "09-03 formation" over the latitude labels.
+    """
+    point = pd.DataFrame({
+        "time": [pd.Timestamp("2025-09-03 18:00")], "lat": [25.0], "lon": [125.3],
+        "label": ["09-03 18Z formation"],
+    })
+    fig = plt.figure(figsize=(4, 4))
+    axes = _geo_axes(fig)
+    _label_dates(axes, [(point, "time", "below left", "#111111")], size=7)
+    fig.canvas.draw()
+
+    (label,) = [text for text in axes.texts if text.get_text()]
+    assert label.get_text() == "09-03 18Z formation"
+    box, panel = label.get_window_extent(), axes.get_window_extent()
+    assert panel.x0 <= box.x0 and box.x1 <= panel.x1
+    plt.close(fig)
+
+
+def test_the_preferred_spot_is_taken_when_free() -> None:
+    point = pd.DataFrame({"time": [pd.Timestamp("2026-09-02")], "lat": [25.0],
+                          "lon": [130.0]})
+    fig = plt.figure(figsize=(4, 4))
+    axes = _geo_axes(fig)
+    _label_dates(axes, [(point, "time", "above right", "#111111")], size=7)
+    fig.canvas.draw()
+
+    (label,) = [text for text in axes.texts if text.get_text()]
+    dot_x, dot_y = ccrs.PlateCarree()._as_mpl_transform(axes).transform([[130.0, 25.0]])[0]
+    box = label.get_window_extent()
+    assert box.x0 > dot_x and box.y0 > dot_y
+    plt.close(fig)
+
+
+def test_milestones_off_00z_carry_their_hour() -> None:
+    from wn2_typhoon.analysis.plot_compare import _milestone_text
+
+    assert _milestone_text(pd.Timestamp("2026-09-01 00:00"), "formation") == "09-01 formation"
+    assert (
+        _milestone_text(pd.Timestamp("2025-09-03 18:00"), "formation")
+        == "09-03 18Z formation"
+    )
+
+
 def test_daily_keeps_the_00z_rows_only() -> None:
     track = pd.DataFrame(
         {"valid_time": pd.date_range("2026-09-01 12:00", periods=6, freq="6h")}
