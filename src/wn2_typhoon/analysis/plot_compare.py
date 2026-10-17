@@ -25,6 +25,7 @@ from wn2_typhoon.analysis.plot import (
     OBSERVED_STYLE,
     _finish,
     _grid_figure,
+    _label_dates,
     _panel_title,
     map_axes,
     track_extent,
@@ -33,6 +34,17 @@ from wn2_typhoon.analysis.track_error import TRACK_TIME
 
 LINE_WIDTH = 1.8
 MARKER_SIZE = 4.5
+MILESTONE_RING_SIZE = 10
+
+
+def _milestone_text(when: pd.Timestamp, name: str) -> str:
+    """Label a milestone with its date, and its hour when that is not 00Z.
+
+    The 00Z dots beside it are labelled with the date alone, so a milestone
+    at 18Z dated like them would read as the 00Z position of that day.
+    """
+    stamp = f"{when:%m-%d}" if when.hour == 0 else f"{when:%m-%d %HZ}"
+    return f"{stamp} {name}"
 
 
 def _style(index: int) -> dict:
@@ -354,30 +366,32 @@ def plot_case_tracks(
     axes = map_axes(fig, (rows, columns, index + 1), reference_extent, basemap,
                     width_px=panel_width_px, label_sides=("left", "bottom"))
     axes.plot(best["lon"], best["lat"], transform=ccrs.PlateCarree(), **OBSERVED_STYLE)
-    # One label per 00Z point. A milestone joins its date in one label and
-    # goes below-left, plain dates go above-right, so neighbouring days on the
-    # slow-moving parts of the track do not print over each other.
+    # One label per 00Z point and per milestone, a milestone's in one label
+    # with its date. Milestones prefer below-left and pick first, plain dates
+    # prefer above-right; the zoom is tight around a slow-moving track, so
+    # fixed offsets printed labels over each other and past the panel edge.
     milestones = {pd.Timestamp(when): name for name, when in events.items()}
     daily = best.loc[(best["time"].dt.hour == 0) | best["time"].isin(milestones)]
     axes.plot(daily["lon"], daily["lat"], transform=ccrs.PlateCarree(),
               marker="o", markersize=4, color=OBSERVED_STYLE["color"], linestyle="none",
               zorder=6)
-    for _, point in daily.iterrows():
-        milestone = milestones.get(pd.Timestamp(point["time"]))
-        if milestone:
-            axes.plot(point["lon"], point["lat"], transform=ccrs.PlateCarree(),
-                      marker="o", markersize=10, markerfacecolor="none",
-                      markeredgecolor=OBSERVED_STYLE["color"], markeredgewidth=1.6,
-                      linestyle="none", zorder=7)
-        axes.annotate(
-            f"{point['time']:%m-%d} {milestone}" if milestone else f"{point['time']:%m-%d}",
-            (point["lon"], point["lat"]),
-            xycoords=ccrs.PlateCarree()._as_mpl_transform(axes),
-            xytext=(-7, -9) if milestone else (4, 3), textcoords="offset points",
-            fontsize=7 if milestone else 6.5,
-            color=INK["primary"] if milestone else INK["secondary"],
-            ha="right" if milestone else "left",
-        )
+    marked = daily.loc[daily["time"].isin(milestones)]
+    marked = marked.assign(
+        label=[_milestone_text(when, milestones[when]) for when in marked["time"]]
+    )
+    axes.plot(marked["lon"], marked["lat"], transform=ccrs.PlateCarree(),
+              marker="o", markersize=MILESTONE_RING_SIZE, markerfacecolor="none",
+              markeredgecolor=OBSERVED_STYLE["color"], markeredgewidth=1.6,
+              linestyle="none", zorder=7)
+    _label_dates(
+        axes,
+        [(marked, "time", "below left", INK["primary"]),
+         (daily.loc[~daily["time"].isin(milestones)], "time", "above right",
+          INK["secondary"])],
+        size=6.5,
+        rings=[(lon, lat, MILESTONE_RING_SIZE / 2 + 1)
+               for lon, lat in zip(marked["lon"], marked["lat"], strict=True)],
+    )
     _panel_title(axes, "JMA reference (zoomed), 00Z dates and milestones")
 
     if title:

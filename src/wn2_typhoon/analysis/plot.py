@@ -699,9 +699,10 @@ def _label_dates(
     its daily positions sit close together, and a member that follows it puts
     its own beside them. Each label therefore tries eight spots around its
     dot, its preferred side first and the opposite side last, and takes the
-    first that covers neither a marker nor a label already placed. When none
-    is free it takes the one that overlaps least. Track lines are not
-    avoided; the white outline keeps a label legible where one runs under it.
+    first that covers neither a marker nor a label already placed and stays
+    inside the panel. When none is free it takes the one that overlaps and
+    sticks out least. Track lines are not avoided; the white outline keeps a
+    label legible where one runs under it.
 
     A label takes its track's colour rather than an ink colour. Where the
     member runs along the observed path, a date sits between a blue dot and
@@ -710,9 +711,11 @@ def _label_dates(
 
     Args:
         axes: Map axes from :func:`map_axes`, with the dots already drawn.
-        dated: ``(daily rows, time column, preferred side, colour)`` per
-            track, in the order their labels get first pick; side is
-            ``"left"`` or ``"right"``.
+        dated: ``(daily rows, time column, preferred spot, colour)`` per
+            track, in the order their labels get first pick. The spot is
+            ``"left"``, ``"right"``, or either with ``"above"`` or ``"below"``
+            in front; the search then goes round from its horizontal side.
+            Rows with a ``label`` column print it instead of the date.
         size: Font size.
         rings: ``(lon, lat, radius in points)`` of markers larger than a dot,
             such as the formation circle. Labels keep off them, and a dot
@@ -744,6 +747,7 @@ def _label_dates(
 
     halo = [patheffects.withStroke(linewidth=2.2, foreground="white")]
     gap = renderer.points_to_pixels(1.0)
+    panel = axes.bbox
 
     def place(point, time_column: str, colour: str, spot: str, clearance: float):
         across, up = clearance + 2, clearance + 1
@@ -758,7 +762,7 @@ def _label_dates(
             "below left": ((-across, -up), "right", "top"),
         }[spot]
         label = axes.annotate(
-            f"{pd.Timestamp(point[time_column]):%m-%d}",
+            point.get("label", f"{pd.Timestamp(point[time_column]):%m-%d}"),
             (point["lon"], point["lat"]), xycoords=to_axes,
             xytext=offset, textcoords="offset points",
             fontsize=size, color=colour, ha=ha, va=va,
@@ -775,10 +779,16 @@ def _label_dates(
                 total += both.width * both.height
         return total
 
+    def outside(box) -> float:
+        kept = Bbox.intersection(box, panel)
+        return box.width * box.height - (kept.width * kept.height if kept else 0.0)
+
     for daily, time_column, side, colour in dated:
-        other = "left" if side == "right" else "right"
-        order = (side, f"above {side}", f"below {side}", "above", "below",
-                 f"above {other}", f"below {other}", other)
+        horizontal = side.split()[-1]
+        other = "left" if horizontal == "right" else "right"
+        order = (horizontal, f"above {horizontal}", f"below {horizontal}", "above",
+                 "below", f"above {other}", f"below {other}", other)
+        order = (side, *(spot for spot in order if spot != side))
         for _, point in daily.iterrows():
             xy = display(point["lon"], point["lat"])
             clearance = max(
@@ -788,10 +798,10 @@ def _label_dates(
             tried = []
             for spot in order:
                 label, box = place(point, time_column, colour, spot, clearance)
-                if not any(box.overlaps(other) for other in occupied):
+                if not outside(box) and not any(box.overlaps(other) for other in occupied):
                     break
                 label.remove()
-                tried.append((overlap(box), spot))
+                tried.append((overlap(box) + outside(box), spot))
             else:
                 _, box = place(point, time_column, colour, min(tried)[1], clearance)
             occupied.append(box)
