@@ -184,3 +184,36 @@ def path_offsets(
         clock[readable] = np.where(before | past, np.nan, hours)
     out["clock_hours"] = clock
     return out
+
+
+def chamfer_km(track: pd.DataFrame, reference: pd.DataFrame) -> float:
+    """How far apart two tracks are as shapes, whatever the timing.
+
+    The mean distance from each point of one track to the nearest point of the
+    other, taken both ways and averaged. Both tracks are interpolated between
+    their rows first, so the result does not depend on how often either was
+    sampled: compared row by row, a member of a storm moving 300 km in six
+    hours would sit up to 150 km from the path midway between its own
+    positions even when it lies exactly on it.
+
+    Unlike a time-warped alignment (DTW), nothing is paired with anything, so
+    a member that leaves the observed road produces no artefact downstream of
+    where it left: the part of the path it never visited simply counts as far
+    away. Pass the member without its positions beyond either end of the path
+    (``before_start``, ``past_end``), which are timing, not shape.
+
+    Args:
+        track: The member, with ``time``, ``lat`` and ``lon``.
+        reference: The observed path, with ``time``, ``lat`` and ``lon``.
+
+    Returns:
+        The symmetric mean nearest distance [km]; NaN if either is empty.
+    """
+    if track.empty or reference.empty:
+        return float("nan")
+    a, b = dense_path(track), dense_path(reference)
+    distance = haversine_km(
+        a["lat"].to_numpy()[:, None], a["lon"].to_numpy()[:, None],
+        b["lat"].to_numpy()[None, :], b["lon"].to_numpy()[None, :],
+    )
+    return float(0.5 * (distance.min(axis=1).mean() + distance.min(axis=0).mean()))

@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from wn2_typhoon.analysis.path_offset import dense_path, path_offsets
+from wn2_typhoon.analysis.path_offset import chamfer_km, dense_path, path_offsets
 
 INIT = "2026-09-01T00:00"
 # One degree of latitude.
@@ -87,3 +87,20 @@ def test_the_dense_path_keeps_its_ends_and_crosses_the_dateline() -> None:
     path = dense_path(track, points_per_segment=4)
     assert path["time"].iloc[-1] == track["time"].iloc[-1]
     assert np.allclose(np.diff(path["lon"]), 0.5)
+
+
+def test_chamfer_does_not_depend_on_how_often_a_track_was_sampled() -> None:
+    """On the path but sampled every 6 h against a 3-hourly reference."""
+    reference = pd.DataFrame({
+        "time": pd.date_range(INIT, periods=9, freq="3h"),
+        "lat": 20.0 + 0.5 * np.arange(9), "lon": 130.0,
+    })
+    member = reference.iloc[::2]
+    assert chamfer_km(member, reference) == pytest.approx(0.0, abs=0.5)
+
+
+def test_chamfer_of_a_parallel_track_is_their_distance() -> None:
+    reference = _northward().assign(lon=0.0, lat=lambda frame: frame["lat"] - 20.0)
+    member = reference.assign(lon=1.0)
+    assert chamfer_km(member, reference) == pytest.approx(DEGREE_KM, rel=0.01)
+    assert np.isnan(chamfer_km(member.iloc[0:0], reference))

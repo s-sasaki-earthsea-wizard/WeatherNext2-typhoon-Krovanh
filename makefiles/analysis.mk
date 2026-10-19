@@ -16,5 +16,5 @@ evaluate-tables: ## Comparison tables only for CASE, skipping the figures
 compare-cases: ## Put the evaluated cases side by side in outputs/<number>-<name>/comparison/: skill vs init time, spread vs skill, genesis, lifetime
 	uv run python scripts/compare_cases.py --config $(CONFIG) --basemap $(BASEMAP)
 
-compare-storms: ## Put the storms side by side in outputs/storms/: error pooled by lead, distance to the observed path and the clock along it, track ends (run evaluate-all for every storm first)
+compare-storms: ## Put the storms side by side in outputs/storms/: error pooled by lead, distance to the observed path and the clock along it, member shape and clock, directedness scalogram, track ends (run evaluate-all for every storm first)
 	uv run python scripts/compare_storms.py

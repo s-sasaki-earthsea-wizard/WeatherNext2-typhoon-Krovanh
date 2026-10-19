@@ -37,7 +37,7 @@ import numpy as np
 import pandas as pd
 
 from wn2_typhoon.analysis.compare import WITHIN_KM, CaseResult, load_case, spread_skill
-from wn2_typhoon.analysis.path_offset import path_offsets
+from wn2_typhoon.analysis.path_offset import chamfer_km, path_offsets
 from wn2_typhoon.config import (
     OUTPUTS_DIR,
     TropicalEnd,
@@ -46,6 +46,12 @@ from wn2_typhoon.config import (
     tropical_end,
 )
 from wn2_typhoon.data.jma_besttrack import load_track, tropical_phase
+
+#: Leads at which each member's clock is also read on its own, for a summary
+#: that compares members at the same point of their forecast.
+CLOCK_LEADS = (48, 72, 96)
+#: On-road positions with a readable clock needed for a clock trend.
+MIN_TREND_ROWS = 3
 
 
 @dataclass(frozen=True)
@@ -276,3 +282,95 @@ def spread_skill_by_storm(storms: list[StormResult]) -> pd.DataFrame:
         ignore_index=True,
     )[["storm", "case", "init_time", "n_leads", "max_lead_hours",
        "corr_spread_error", "mean_error_to_spread"]]
+
+
+def _departure(valid_time: pd.Series, on_road: np.ndarray, beyond: np.ndarray):
+    """When a member left the observed road for good.
+
+    The first position, among those not beyond the path's ends, after which
+    no later such position is on the road. NaT for a member on the road to
+    its end and for one never on it.
+    """
+    inside = np.where(~beyond)[0]
+    if not on_road[inside].any():
+        return pd.NaT
+    last_on = inside[on_road[inside]][-1]
+    after = inside[inside > last_on]
+    return pd.Timestamp(valid_time.iloc[after[0]]) if len(after) else pd.NaT
+
+
+def member_shape_and_clock(
+    storms: list[StormResult],
+    within_km: float = WITHIN_KM,
+    clock_leads=CLOCK_LEADS,
+) -> pd.DataFrame:
+    """One row per member: how far its track is from the observed road as a
+    shape, and how early or late it ran on it.
+
+    The two are reported side by side rather than folded into one number:
+    the position error is their mixture. The shape is the Chamfer distance
+    between the member's track and the observed path (``path_offset``),
+    without the member's positions beyond either end of the path. The clock
+    is read only at positions on the road, and is summarised three ways,
+    since no one summary serves every storm: Dujuan's clock is zero before
+    its turn and +14 h after, so a median over the whole forecast dilutes
+    what a reading at one lead shows, while a reading at one lead does not
+    exist for every case.
+
+    Args:
+        storms: The storms being compared.
+        within_km: Radius for "on the road".
+        clock_leads: Leads at which the clock is also read alone.
+
+    Returns:
+        ``storm``, ``case``, ``member``, ``n_rows``, ``n_beyond``,
+        ``mean_error_km``, ``chamfer_km``, ``n_clock`` (on-road positions with
+        a readable clock), ``clock_median_hours``, ``clock_at_<L>h`` for each
+        lead (NaN where the member is off the road, beyond the path, or past
+        ``clock_until`` there), ``clock_trend`` (slope of the clock against
+        lead time, hours per hour; for a member moving along the road at a
+        steady fraction k of the storm's speed it is k - 1), ``departure``
+        (when the member left the road for good, NaT if it did not) and
+        ``on_road_to_end``.
+    """
+    rows = []
+    for storm in storms:
+        for case in storm.cases:
+            reference = storm.best_track.loc[storm.best_track["time"] >= case.init_time]
+            mine = storm.offsets.loc[storm.offsets["case"] == case.case_id]
+            for member, group in mine.groupby("member", sort=True):
+                group = group.sort_values("valid_time").reset_index(drop=True)
+                beyond = (group["before_start"] | group["past_end"]).to_numpy()
+                on_road = ~beyond & (group["path_km"] <= within_km).to_numpy()
+                readable = on_road & group["clock_hours"].notna().to_numpy()
+                clock = group.loc[readable, ["lead_hours", "clock_hours"]]
+                inside = group.loc[~beyond]
+                shape = chamfer_km(
+                    pd.DataFrame({"time": inside["valid_time"], "lat": inside["fcst_lat"],
+                                  "lon": inside["fcst_lon"]}),
+                    reference,
+                )
+                at = clock.set_index("lead_hours")["clock_hours"]
+                trend = (
+                    float(np.polyfit(clock["lead_hours"], clock["clock_hours"], 1)[0])
+                    if len(clock) >= MIN_TREND_ROWS else np.nan
+                )
+                departure = _departure(group["valid_time"], on_road, beyond)
+                rows.append(
+                    {
+                        "storm": storm.label,
+                        "case": case.case_id,
+                        "member": int(member),
+                        "n_rows": len(group),
+                        "n_beyond": int(beyond.sum()),
+                        "mean_error_km": group["error_km"].mean(),
+                        "chamfer_km": shape,
+                        "n_clock": len(clock),
+                        "clock_median_hours": clock["clock_hours"].median(),
+                        **{f"clock_at_{lead}h": at.get(lead, np.nan) for lead in clock_leads},
+                        "clock_trend": trend,
+                        "departure": departure,
+                        "on_road_to_end": bool(on_road.any()) and pd.isna(departure),
+                    }
+                )
+    return pd.DataFrame(rows)

@@ -15,9 +15,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
 
 from wn2_typhoon.analysis.plot import INK, _finish
 from wn2_typhoon.analysis.plot_compare import _label_line_ends
@@ -28,6 +30,13 @@ from wn2_typhoon.analysis.storms import StormResult
 # hence the end labels.
 STORM_COLOURS = ("#2a78d6", "#eb6834", "#1baf7a")
 LINE_WIDTH = 2.0
+# Diverging blue-red with a grey midpoint (the dataviz reference pair). Red is
+# "members less directed than the storm", the stall side.
+DIRECTEDNESS_CMAP = LinearSegmentedColormap.from_list(
+    "directedness", ["#a8302f", "#ee8c8b", "#f0efec", "#6da7ec", "#184f95"]
+)
+# log10 ratio at which the colour saturates: a factor of ten either way.
+DIRECTEDNESS_LIMIT = 1.0
 # How each kind of tropical end reads under a storm's name.
 END_WORDING = {"depression": "weakened to a depression", "extratropical": "became extratropical"}
 
@@ -245,4 +254,124 @@ def plot_track_ends(
     axes.grid(axis="x", visible=False)
     if title:
         axes.set_title(title, fontsize=10, loc="left")
+    return _finish(fig, out_path, credit)
+
+
+def plot_shape_and_clock(
+    members: pd.DataFrame,
+    storms: list[StormResult],
+    out_path: Path,
+    clock_lead: int = 72,
+    title: str | None = None,
+    credit: str | None = None,
+) -> Path:
+    """Each member on two axes: shape against the road, and clock along it.
+
+    The same horizontal axis, the Chamfer distance to the observed path, in
+    three panels that differ in how the clock is summarised: its median over
+    the on-road positions, its value at one lead, and its trend with lead
+    time. Which summary to keep is open; a member without a value in a panel
+    is counted in that panel's title.
+
+    Args:
+        members: Output of ``storms.member_shape_and_clock``.
+        storms: The storms, in colour order.
+        out_path: PNG destination.
+        clock_lead: Lead of the middle panel; ``clock_at_<lead>h`` must exist.
+        title: Figure title.
+        credit: Attribution line, or empty string to suppress it.
+
+    Returns:
+        ``out_path``.
+    """
+    panels = [
+        ("clock_median_hours", "clock, median over on-road positions [h]"),
+        (f"clock_at_{clock_lead}h", f"clock at lead {clock_lead} h [h]"),
+        ("clock_trend", "clock trend [h per h]\n(along-road speed ratio - 1)"),
+    ]
+    fig, axes = plt.subplots(1, 3, figsize=(14.0, 5.0), sharex=True)
+    fig.subplots_adjust(wspace=0.32, bottom=0.17, top=0.82)
+    for axis, (column, label) in zip(axes, panels, strict=True):
+        missing = []
+        for index, storm in enumerate(storms):
+            rows = members.loc[members["storm"] == storm.label]
+            shown = rows.dropna(subset=[column, "chamfer_km"])
+            axis.scatter(shown["chamfer_km"], shown[column], s=26, color=_colour(index),
+                         edgecolors="white", linewidths=0.6, alpha=0.9, zorder=3,
+                         label=storm.label)
+            missing.append(f"{storm.name.title()} {len(rows) - len(shown)}")
+        axis.axhline(0.0, color=INK["muted"], linewidth=0.8)
+        axis.set_ylabel(label)
+        axis.set_xlabel("shape: Chamfer distance to the observed path [km]")
+        axis.set_title("no value: " + ", ".join(missing), fontsize=8, loc="left",
+                       color=INK["secondary"])
+        _tidy(axis)
+    fig.legend(*axes[0].get_legend_handles_labels(), fontsize=8, frameon=False,
+               loc="upper right", ncol=len(storms), bbox_to_anchor=(0.99, 0.95))
+    if title:
+        fig.suptitle(title, fontsize=10, x=0.01, ha="left")
+    return _finish(fig, out_path, credit)
+
+
+def plot_directedness(
+    table: pd.DataFrame,
+    lags: pd.DataFrame,
+    storms: list[StormResult],
+    out_path: Path,
+    title: str | None = None,
+    credit: str | None = None,
+) -> Path:
+    """Scalogram of the members' directedness against the storm's.
+
+    One panel per storm: valid time across, window length up, colour the
+    median over members of log10(Pe_member / Pe_observed). Red is members
+    less directed than the storm at that moment, blue more. Each window
+    length is drawn at its own window centres, which fall between the
+    six-hourly rows when the window has an odd number of steps.
+
+    Args:
+        table: Output of ``directedness.directedness_by_time``.
+        lags: Output of ``directedness.directedness_lag``.
+        storms: The storms, one panel each.
+        out_path: PNG destination.
+        title: Figure title.
+        credit: Attribution line, or empty string to suppress it.
+
+    Returns:
+        ``out_path``.
+    """
+    fig, axes = plt.subplots(len(storms), 1, figsize=(10.0, 2.3 * len(storms) + 0.8))
+    axes = np.atleast_1d(axes)
+    fig.subplots_adjust(hspace=0.75, right=0.86, top=0.9, bottom=0.08)
+    norm = TwoSlopeNorm(vcenter=0.0, vmin=-DIRECTEDNESS_LIMIT, vmax=DIRECTEDNESS_LIMIT)
+    image = None
+    for axis, storm in zip(axes, storms, strict=True):
+        rows = table.loc[table["storm"] == storm.label]
+        windows = sorted(rows["window_hours"].unique())
+        for hours in windows:
+            band = rows.loc[rows["window_hours"] == hours].sort_values("centre")
+            centres = mdates.date2num(pd.to_datetime(band["centre"]).dt.to_pydatetime())
+            half = 3.0 / 24.0
+            edges = np.append(centres - half, centres[-1] + half)
+            values = band["log_ratio_median"].to_numpy()[None, :]
+            image = axis.pcolormesh(edges, [hours - 3, hours + 3], values,
+                                    cmap=DIRECTEDNESS_CMAP, norm=norm, shading="flat")
+        best = lags.loc[(lags["storm"] == storm.label) & lags["best"]]
+        best = best.drop_duplicates("window_hours").sort_values("window_hours")
+        summary = (
+            f"best lag of the members [h] at {'/'.join(str(h) for h in best.window_hours)} h "
+            f"windows: {' / '.join(f'{int(lag):+d}' for lag in best.lag_hours)}"
+            if len(best) else "too few windows for a lag"
+        )
+        axis.set_title(f"{storm.label}    {summary}", fontsize=8.5, loc="left")
+        axis.set_yticks(windows)
+        axis.set_ylabel("window [h]")
+        axis.xaxis_date()
+        axis.xaxis.set_major_locator(mdates.DayLocator())
+        axis.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d"))
+    if image is not None:
+        bar = fig.colorbar(image, ax=list(axes), fraction=0.025, pad=0.02)
+        bar.set_label("median log10(Pe member / Pe observed)\nred: members less directed")
+    if title:
+        fig.suptitle(title, fontsize=10, x=0.01, ha="left")
     return _finish(fig, out_path, credit)
