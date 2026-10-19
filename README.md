@@ -180,8 +180,11 @@ multiples of the tracks and one GeoJSON pair holding every case.
 `outputs/storms/` (a symlink to the NAS, made by hand like the per-storm
 ones): the mean error and the members at the observed position, the members
 on the observed path at any time and their clock along it (how many hours
-ahead or behind the storm they are), when the tracks ended against the end of
-the tropical phase and the dissipation, and spread against skill. Krovanh,
+ahead or behind the storm they are), each member's shape against the path and
+its clock on it, how directed the members moved against the storm at the same
+time (a Péclet-like ratio over 18-36 h windows, drawn as a scalogram), when
+the tracks ended against the end of the tropical phase and the dissipation,
+and spread against skill. Krovanh,
 Dujuan and Peipah run in that order by default; see docs/design.md
 ("Across-storm comparison") for why km errors alone do not compare across
 storms.

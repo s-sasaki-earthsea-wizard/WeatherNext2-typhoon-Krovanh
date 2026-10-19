@@ -532,6 +532,85 @@ to the day the storm turned there. The clock is therefore read only up to
 distance to the path still uses the whole path, which is lenient inside the
 loop: a looping path covers an area rather than a line.
 
+### Shape and clock per member
+
+`storms.member_shape_and_clock` gives each member one row. The shape is the
+Chamfer distance between its track and the observed path: the mean distance
+from each point of one to the nearest point of the other, both ways,
+averaged. Both are interpolated first, because compared row by row a member
+of a storm moving 300 km in six hours sits up to 150 km from the path midway
+between its own positions even when it lies on it; the uninterpolated
+version ranked Dujuan 91 km and Peipah 83 km, the interpolated one 82 and 66.
+Positions beyond either end of the path are left out: they are timing.
+
+The clock is read at on-road positions only and summarised three ways,
+because no one summary serves every storm. The median over the forecast
+dilutes Dujuan's +14 h after its turn with the zero before it; a reading at
+one lead (48, 72 or 96 h) compares members at the same point of their
+forecast but does not exist for every case (Krovanh's +12 h case is past the
+loop start at 72 h, and most of Peipah's cases past the transition); the
+trend, the slope of the clock against lead time, is k - 1 for a member that
+moves along the road at a steady fraction k of the storm's speed. The table
+also records when the member left the road for good, which is lenient
+inside a loop and is not drawn.
+
+### Directedness
+
+A stall is a storm whose motion stops being directed, not one that stops:
+it wanders. `directedness` reads a track the way a drifting Brownian
+particle is read, over windows of n six-hourly steps,
+
+    Pe = |sum of steps|^2 / sum |step - mean step|^2,
+
+the net displacement squared against the scatter of the steps, a Péclet
+number for the track. The scatter is measured from the same steps, so no
+diffusion coefficient is put in from outside. Two other choices would each
+have added one, and neither is made:
+
+* No absolute reference. Independent isotropic steps give Pe near n/(n-1),
+  but a cyclone is not a random walk. Each member window is compared with
+  the observed storm's over the same window, log10(Pe_member / Pe_observed):
+  red when the members are less directed than the storm, blue more.
+* No single window. A stall lasts about a day and a loop about two, and on
+  Krovanh each shows at its own scale (at 09-04 00Z Pe is 0.2 over 18 h and
+  2.3 over 48 h). 18, 24, 30 and 36 h are computed and drawn together as a
+  scalogram. 18 h is the shortest window whose scatter rests on more than two
+  steps; a crossover window read off Pe(tau) was tried and collapsed onto 12 h
+  for every centre, because a two-step scatter has one degree of freedom.
+
+The observed storm contributes only its rows at 00, 06, 12 and 18 UTC, the
+members' times. A stall and a loop both lower Pe, the first by shrinking the
+net displacement and the second by turning it round, and are not told apart.
+The anomalous-diffusion exponent (MSD growing as tau^alpha), which would, was
+tried: on six-hourly positions over one to two days it sat at 1.5-1.9 for
+every track, observed ones included, and at 1.63 for Krovanh's loop itself.
+
+`directedness_lag` correlates the observed log10 Pe with the members' median
+across shifts of whole steps and returns the whole profile with its best
+shift marked. A curve is dominated by its longest directed stretch, so the
+lag says when the members' motion as a whole tracks the storm's, not when
+they enter the stall; on Krovanh the correlation at 0 and +6 h differs by
+0.02 and how the members' median is taken decides which wins.
+
+### Time-warped alignment, tried and set aside
+
+Dynamic time warping matches each member position to a stretch of the
+observed path, monotonically, and so promises a clock without the
+`loop_start_time` cut and a shape residual in one pass. It was tried on all
+three storms (2026-10-19). On a member that stays on the road it agrees with
+the nearest-point clock (Dujuan: Spearman 0.95, 99% within 6 h, whatever
+the end condition). On a member that leaves the road every end condition
+makes an artefact: tied to the path's last point, the member's tail is
+pulled toward it and reads ahead; free at the path's end, the tail sticks to
+one point of it and reads late at -1 h per hour (Krovanh at 132 h: -75 h);
+free at the member's end, the tail gets no clock but the positions before it
+are still bent. Gated to positions within 200 km, the DTW clock equals the
+nearest-point clock (Spearman 0.78-0.85, 80-81% within 6 h). The gate has to be
+the distance to the path, which needs no alignment, so the alignment adds
+nothing, and the Chamfer distance gives the shape without one. When a member
+left the road reads -9 h from the stall start by the alignment cost and +9 h
+by the distance to the path, which is the same lesson from the other side.
+
 ### Track ends
 
 The tracker follows a closed vortex through a weakening to a depression and
@@ -572,3 +651,31 @@ stops at 66 h, the last lead at which every case is still before the loop.
   for Dujuan (rising with later initialization) and 1.0-1.8 for Peipah.
   Under-dispersion is a property of the unperturbed initial state, not of
   one storm.
+
+### Findings (2026-10-19)
+
+| Member medians | Chamfer to the path | clock, median | clock trend [h/h] |
+|---|---|---|---|
+| Krovanh | 113 km | -6.2 h | -0.32 (range -0.53 to -0.01) |
+| Dujuan | 82 km | +2.2 h | +0.16 (-0.14 to +0.36) |
+| Peipah | 66 km | +1.3 h | -0.02 (-0.26 to +0.15) |
+
+* Shape alone hardly separates the storms: Krovanh's 10th-90th percentile
+  is 65-198 km, Dujuan's 55-126 km, and Krovanh's members that end west of
+  or inside the observed box (medians 73 and 90 km) sit within Dujuan's
+  interquartile range (61-100 km). The clock trend does:
+  every Krovanh member runs slower than the storm along the road before the
+  loop (at most -0.01), and the other two centre on zero.
+* Directedness, Krovanh: up to 09-04 12Z the members are more directed than
+  the storm (median log ratio +0.46, 1 of 42 cells red), from 09-04 18Z on
+  less directed (-0.31, 28 of 30 cells red, a median 69% of members below
+  the storm). The storm stalled on 09-04 while the members kept going, and
+  they slowed after it had started to move again.
+* Dujuan's members track the storm's directedness closely (median |log
+  ratio| 0.21) with a best lag of -12 to -18 h, the same half day ahead as
+  the clock; the few red cells sit around the turn on 09-19 and 09-20.
+* Peipah's members are less directed than the storm on its straight
+  north-north-westward approach (09-03 15Z to 09-04 06Z, 75-100% of them
+  below it in all but one window, where the storm's own Pe reached up to
+  410), and its tropical phase
+  is too short for a lag at windows of 24 h or more.

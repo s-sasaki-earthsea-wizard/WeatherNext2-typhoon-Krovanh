@@ -61,8 +61,12 @@ Krovanh's tables are byte-identical under both changes.
 `outputs/storms/` (docs/requirements.md 16, docs/design.md "Across-storm
 comparison"). The error is split into the distance to the observed path and
 the clock along it: Dujuan stays on the road and runs ~14 h ahead after its
-turn, Krovanh leaves the road at its stall. Target: a talk at the VRChat
-physics meetup on 2026-10-31.
+turn, Krovanh leaves the road at its stall.
+2026-10-19: the stall is measured as directedness (a Péclet-like ratio,
+docs/requirements.md 17), as a scalogram over 18-36 h against the observed
+storm, and each member gets a shape (Chamfer) and clock row. Target: a talk
+at the VRChat physics meetup, on or after 2026-11-28 (moved from 10-31), so
+the added Krovanh members can come first.
 
 ## Hard constraints
 
@@ -119,6 +123,12 @@ physics meetup on 2026-10-31.
   its northernmost point): past it the loop puts two passes days apart
   within reach of one position. Positions beyond either end of the path are
   counted apart, never as off the path.
+* Directedness (`analysis/directedness.py`) is always read against the
+  observed storm over the same window and over the whole 18-36 h range of
+  windows; do not reintroduce a random-walk reference or one fixed window,
+  each was rejected as an added assumption. Do not use time-warped alignment
+  (DTW) for the clock or the shape: every end condition makes an artefact
+  once a member leaves the road (docs/design.md).
 * Never draw an ensemble-mean track on an across-case figure. The members
   split into a Japan group and a continent group and the mean runs between
   them near the observed loop on a path no member took. Any ensemble-mean
