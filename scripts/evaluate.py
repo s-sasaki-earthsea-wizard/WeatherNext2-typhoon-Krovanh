@@ -124,21 +124,26 @@ def selection_table(selections) -> pd.DataFrame:
     )
 
 
-def report_initial_state(case, inputs_dir: Path) -> dict | None:
+def report_initial_state(case, inputs_dir: Path, best_track: pd.DataFrame) -> dict | None:
     """Measure and log the initial-state error, when a position exists for it.
 
     Args:
         case: The case being evaluated.
         inputs_dir: Directory holding ``<case>/inputs.nc``.
+        best_track: The reference track, named in the log when it has no
+            position at init time.
 
     Returns:
         The measurement, or None when the case has no analysed position or the
         input file is not on this machine.
     """
     if case.observed_position is None:
+        # A preliminary table starts at formation, a post-analysis one at the
+        # first depression row; either way the case is earlier than that.
         logger.info(
             "No analysed position at init time, so no initial-state error: "
-            "the preliminary JMA table starts at formation"
+            "the %s table starts at %s",
+            best_track["source"].iloc[0], best_track["time"].min(),
         )
         return None
     inputs_path = inputs_dir / case.id / "inputs.nc"
@@ -190,7 +195,7 @@ def evaluate_case(case, cfg: dict, args: argparse.Namespace) -> None:
         best_track["time"].min(), best_track["time"].max(), end.kind,
     )
 
-    report_initial_state(case, args.inputs_dir)
+    report_initial_state(case, args.inputs_dir, best_track)
 
     # Identify the storm at the TS upgrade, or at the first reference time
     # after init for a case initialized later than that.

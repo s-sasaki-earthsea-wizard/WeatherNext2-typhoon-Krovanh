@@ -193,3 +193,15 @@ def comparison_dir(cfg: dict[str, Any], outputs_dir: Path = OUTPUTS_DIR) -> Path
         ``<storm_dir>/comparison``.
     """
     return storm_dir(cfg, outputs_dir) / "comparison"
+
+
+def across_storms_dir(outputs_dir: Path = OUTPUTS_DIR) -> Path:
+    """Directory of the comparison across storms, which belongs to no one storm.
+
+    Args:
+        outputs_dir: Root of the results.
+
+    Returns:
+        ``<outputs_dir>/storms``.
+    """
+    return Path(outputs_dir) / "storms"

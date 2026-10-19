@@ -152,3 +152,46 @@ recurving away.
     table are scored (binding now for PEIPAH, at the turn of the year for the
     2026 storms), and how the lifetime and member-fate tables should read for
     a storm that went extratropical, which the tracker can follow on.
+16. **Storms are compared by distance to the path and clock along it
+    (2026-10-17).** Pooled over each storm's cases, km errors are not
+    comparable across storms: Dujuan and Peipah run at 50 km/h after
+    recurving, where a few hours of timing make hundreds of km, while
+    Krovanh crawled. Every forecast position is therefore also measured as
+    its distance to the observed path at any time ("on the path" within
+    200 km, the radius of the member counts) and its clock, when the
+    observed storm passed the nearest point minus the valid time. Positions
+    behind the path's start or past its end are counted apart, not as off
+    the path. Krovanh's clock is read only up to its northernmost point,
+    2026-09-04 06Z (`loop_start_time`), because its loop brings two passes
+    days apart within reach of the same position. Shares are over the
+    members still tracking the storm, so Peipah's tracker-filtered members
+    are not charged to the model. Track ends are read against the
+    dissipation where it is known (Krovanh), since the tracker follows the
+    vortex rather than the tropical storm. A rank histogram is deferred:
+    the error-to-spread ratio already shows the under-dispersion.
+17. **A stall is measured by how directed the motion is, against the
+    observed storm, over 18-36 h windows (2026-10-19).** For a window of
+    six-hourly steps, Pe = |sum of steps|^2 / sum |step - mean step|^2, a
+    Péclet number for the track (drift against scatter). The scatter is
+    measured from the same steps, so no diffusion coefficient is assumed.
+    The reference is the observed storm's Pe over the same window, as
+    log10(Pe_member / Pe_observed), not the n/(n-1) of a random walk, which
+    would add an assumption about the storm. No single window is chosen:
+    18, 24, 30 and 36 h are shown together as a scalogram, 18 h being the
+    shortest window whose scatter rests on more than two steps. A stall and
+    a loop both lower Pe and are not told apart. The box-and-speed rule of
+    2026-09-25 (a box at 24-31N 125-134E, under 300 km in 24 h) is retired;
+    its "pass-through members disappear after formation" did not reproduce
+    under this measure, because it counted slow but straight motion as a
+    stall.
+
+    Per member, shape and clock are reported side by side: the Chamfer
+    distance between the member's track and the observed path (both
+    interpolated, positions beyond the path's ends left out), and the clock
+    on the road summarised three ways (median, at 48/72/96 h, trend against
+    lead), the choice between them left open. When a member left the road
+    for good is tabulated, not drawn. Time-warped alignment (DTW) was tried
+    for both and set aside; see docs/design.md.
+
+    This is written down, and committed, before more Krovanh members are
+    run, so that those members test it rather than shape it.
